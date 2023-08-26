@@ -7,3 +7,6 @@ edition = "2021"
 
 [dependencies]
 url = "2.4"
+
+# local dependencies
+odata-model = { path = "../odata-model" }

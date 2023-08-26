@@ -470,7 +470,10 @@ dependencies = [
 name = "odata-model"
 version = "0.1.0"
 dependencies = [
+ "percent-encoding",
  "serde",
+ "serde_json",
+ "thiserror",
  "url",
 ]
 
@@ -478,6 +481,7 @@ dependencies = [
 name = "odata-parser"
 version = "0.1.0"
 dependencies = [
+ "odata-model",
  "url",
 ]
 

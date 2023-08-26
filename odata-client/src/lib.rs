@@ -7,7 +7,7 @@ use odata_model::{ODataEndpoint, ServiceDocument};
 use url::Url;
 
 pub struct ODataClient {
-    client: reqwest::Client,
+    _client: reqwest::Client,
     url: Url,
 }
 
@@ -19,7 +19,7 @@ impl ODataClient {
         let service_document: ServiceDocument = client.get(url.clone()).send().await?.json().await?;
         endpoint.enrich(service_document);
 
-        Ok(Self { client, url })
+        Ok(Self { _client: client, url })
     }
 
     pub fn url(&self) -> &Url {
