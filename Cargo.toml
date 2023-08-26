@@ -1,0 +1,3 @@
+[workspace]
+members = ["odata-parser", "odata-client", "odata-model", "sample-client"]
+resolver = "2"
