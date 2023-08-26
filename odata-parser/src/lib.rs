@@ -11,7 +11,7 @@ pub use odata_model;
 /// let resource = parse_url(url).expect("Failed to create a resource from the URL");
 ///
 /// assert_eq!(resource.name, "People");
-/// assert_eq!(resource.key, Some("O'Neil".to_string()))
+/// assert_eq!(resource.key.unwrap().to_string(), "O'Neil");
 /// ```
 pub fn parse_url(url: &str) -> ODataResult<ODataResource> {
     let resource = ODataResource::try_from(url)?;

@@ -44,7 +44,7 @@ pub struct ODataResource {
     pub kind: ODataResourceKind,
     pub url: String,
     pub title: Option<String>,
-    pub key: Option<String>,
+    pub key: Option<Key>,
 }
 
 #[derive(Default)]
@@ -54,6 +54,38 @@ pub enum ODataResourceKind {
     Singleton,
     FunctionImport,
     ServiceDocument,
+}
+
+pub enum Key {
+    String(String),
+    Number(i32),
+    KeyValue((String, Value)),
+}
+
+impl std::fmt::Display for Key {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Key::String(value) => write!(f, "{}", value),
+            Key::Number(value) => write!(f, "{}", value),
+            Key::KeyValue((name, value)) => write!(f, "{}={}", name, value),
+        }
+    }
+}
+
+pub enum Value {
+    String(String),
+    Number(i32),
+    QueryOption(String),
+}
+
+impl std::fmt::Display for Value {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Value::String(value) => write!(f, "{}", value),
+            Value::Number(value) => write!(f, "{}", value),
+            Value::QueryOption(value) => write!(f, "@{}", value),
+        }
+    }
 }
 
 impl TryFrom<&str> for ODataResource {
@@ -79,7 +111,7 @@ impl TryFrom<&str> for ODataResource {
     }
 }
 
-fn extract_name_and_key(name: &str) -> (&str, Option<String>) {
+fn extract_name_and_key(name: &str) -> (&str, Option<Key>) {
     if name.contains("('") && name.contains("')") {
         let mut parts = name.split("('");
         let name = parts.next().unwrap();
@@ -87,10 +119,49 @@ fn extract_name_and_key(name: &str) -> (&str, Option<String>) {
         let key = key.trim_end_matches("')");
         let key = key.replace("''", "'");
 
-        (name, Some(key))
-    } else {
-        (name, None)
+        return (name, Some(Key::String(key)));
     }
+
+    if name.contains('(') && name.contains(')') {
+        let mut parts = name.split('(');
+        let name = parts.next().unwrap();
+        let key = parts.next().unwrap();
+        let key = key.trim_end_matches(')');
+
+        if key.contains('=') {
+            let mut parts = key.split('=');
+            let key = parts.next().unwrap();
+            let value = parts.next().unwrap();
+
+            if value.starts_with('\'') && value.ends_with('\'') {
+                let value = value.trim_start_matches('\'').trim_end_matches('\'');
+                return (
+                    name,
+                    Some(Key::KeyValue((key.to_string(), Value::String(value.to_string())))),
+                );
+            }
+
+            if value.starts_with('@') {
+                let value = value.trim_start_matches('@');
+                return (
+                    name,
+                    Some(Key::KeyValue((key.to_string(), Value::QueryOption(value.to_string())))),
+                );
+            }
+
+            if let Ok(num) = value.parse::<i32>() {
+                return (name, Some(Key::KeyValue((key.to_string(), Value::Number(num)))));
+            }
+
+            return (name, None);
+        }
+
+        if let Ok(num) = key.parse::<i32>() {
+            return (name, Some(Key::Number(num)));
+        }
+    }
+
+    (name, None)
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -197,7 +268,7 @@ mod tests {
         let url = "http://services.odata.org/V4/TripPinService/People('russellwhyte')";
         let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
         assert_eq!(resource.name, "People");
-        assert_eq!(resource.key, Some("russellwhyte".to_string()))
+        assert_eq!(resource.key.unwrap().to_string(), "russellwhyte")
     }
 
     #[test]
@@ -205,7 +276,7 @@ mod tests {
         let url = "http://services.odata.org/V4/TripPinService/People('O''Neil')";
         let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
         assert_eq!(resource.name, "People");
-        assert_eq!(resource.key, Some("O'Neil".to_string()))
+        assert_eq!(resource.key.unwrap().to_string(), "O'Neil")
     }
 
     #[test]
@@ -213,6 +284,27 @@ mod tests {
         let url = "http://services.odata.org/V4/TripPinService/People%28%27O%27%27Neil%27%29";
         let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
         assert_eq!(resource.name, "People");
-        assert_eq!(resource.key, Some("O'Neil".to_string()))
+        assert_eq!(resource.key.unwrap().to_string(), "O'Neil")
+    }
+
+    #[test]
+    fn can_create_a_resource_from_a_url_with_a_numeric_key() {
+        let url = "http://host/service/Categories(1)";
+        let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
+        assert_eq!(resource.name, "Categories");
+        assert_eq!(resource.key.unwrap().to_string(), "1")
+    }
+
+    #[test]
+    fn can_create_a_resource_from_a_url_with_a_query_option() {
+        let url = "http://host/service/ProductsByColor(color=@color)?@color='red'";
+        let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
+        assert_eq!(resource.name, "ProductsByColor");
+        let key = resource.key.unwrap();
+        assert_eq!(key.to_string(), "color=@color");
+        if let Key::KeyValue((key, value)) = key {
+            assert_eq!(key, "color");
+            assert_eq!(value.to_string(), "@color");
+        }
     }
 }
