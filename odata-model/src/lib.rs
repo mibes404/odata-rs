@@ -111,6 +111,7 @@ impl TryFrom<&str> for ODataResource {
     }
 }
 
+/// Extract the name and key from a resource name, e.g. People('O''Neil') -> (People, Some(O'Neil))
 fn extract_name_and_key(name: &str) -> (&str, Option<Key>) {
     if name.contains("('") && name.contains("')") {
         let mut parts = name.split("('");
