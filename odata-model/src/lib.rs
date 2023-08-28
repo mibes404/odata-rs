@@ -67,6 +67,7 @@ pub struct ODataResource {
     pub property: Option<String>,
     pub operation: Option<Operation>,
     pub relationships: Vec<Entity>,
+    pub search: Option<String>,
 }
 
 #[derive(Default)]
@@ -102,6 +103,7 @@ impl std::fmt::Display for Entity {
 pub enum Operation {
     Count,
     Value,
+    All,
 }
 
 impl TryFrom<&str> for Operation {
@@ -111,6 +113,7 @@ impl TryFrom<&str> for Operation {
         match value {
             "$count" => Ok(Self::Count),
             "$value" => Ok(Self::Value),
+            "$all" => Ok(Self::All),
             _ => Err(ODataError::InvalidOperation),
         }
     }
@@ -153,50 +156,66 @@ impl TryFrom<&str> for ODataResource {
         let value = value.trim_start_matches('/');
         let value = format!("{PARSE_PREFIX}{value}");
         let url = Url::parse(&value)?;
-        match url.path_segments() {
-            None => Err(ODataError::IncompletePath),
-            Some(mut parts) => {
-                let Some(name) = parts.nth(2) else {
-                    return Err(ODataError::IncompletePath);
-                };
+        let mut result = match parse_path(&url, value) {
+            Ok(value) => value,
+            Err(err) => return Err(err),
+        };
 
-                let name = percent_decode_str(name).decode_utf8_lossy();
-                let entity = extract_entity(&name);
-
-                let mut part;
-                let mut relationships = vec![];
-                let mut property: Option<String> = None;
-                let mut operation = None;
-
-                loop {
-                    part = interpret_next_part(&mut parts);
-
-                    match part {
-                        Some(NextPart::Part(part)) => {
-                            if let Some(property) = property.take() {
-                                // there was more to parse, so this isn't the end of the resource, i.e. not a property
-                                relationships.push(extract_entity(&property));
-                            }
-
-                            property = Some(part.to_string());
-                        }
-                        Some(NextPart::Operation(part)) => {
-                            operation = Some(part);
-                        }
-                        None => break,
-                    };
-                }
-
-                Ok(Self {
-                    entity,
-                    kind: ODataResourceKind::EntitySet,
-                    url: value.to_string(),
-                    title: None,
-                    property,
-                    operation,
-                    relationships,
-                })
+        url.query_pairs().for_each(|(key, value)| {
+            if key == "$search" {
+                result.search = Some(value.to_string());
             }
+        });
+
+        Ok(result)
+    }
+}
+
+fn parse_path(url: &Url, value: String) -> ODataResult<ODataResource> {
+    match url.path_segments() {
+        None => Err(ODataError::IncompletePath),
+        Some(mut parts) => {
+            let Some(name) = parts.nth(2) else {
+                return Err(ODataError::IncompletePath);
+            };
+
+            let name = percent_decode_str(name).decode_utf8_lossy();
+            let entity = extract_entity(&name);
+
+            let mut part;
+            let mut relationships = vec![];
+            let mut property: Option<String> = None;
+            let mut operation = None;
+
+            loop {
+                part = interpret_next_part(&mut parts);
+
+                match part {
+                    Some(NextPart::Part(part)) => {
+                        if let Some(property) = property.take() {
+                            // there was more to parse, so this isn't the end of the resource, i.e. not a property
+                            relationships.push(extract_entity(&property));
+                        }
+
+                        property = Some(part.to_string());
+                    }
+                    Some(NextPart::Operation(part)) => {
+                        operation = Some(part);
+                    }
+                    None => break,
+                };
+            }
+
+            Ok(ODataResource {
+                entity,
+                kind: ODataResourceKind::EntitySet,
+                url: value.to_string(),
+                title: None,
+                property,
+                operation,
+                relationships,
+                search: None,
+            })
         }
     }
 }
@@ -319,6 +338,7 @@ impl From<ServiceDocumentValue> for ODataResource {
             property: None,
             operation: None,
             relationships: Vec::new(),
+            search: None,
         }
     }
 }
@@ -468,5 +488,13 @@ mod tests {
         assert_eq!(relationship.name, "Friends");
         assert_eq!(relationship.key.as_ref().unwrap().to_string(), "scottketchum");
         assert_eq!(resource.property.unwrap(), "AddressInfo");
+    }
+
+    #[test]
+    fn can_create_a_resource_from_a_url_with_a_search_operation() {
+        let url = "People?$search=russellwhyte";
+        let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
+        assert_eq!(resource.entity.name, "People");
+        assert_eq!(resource.search.unwrap(), "russellwhyte");
     }
 }
