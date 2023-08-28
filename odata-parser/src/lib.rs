@@ -1,19 +1,20 @@
-use odata_model::{error::ODataResult, ODataResource};
+use odata_model::{error::ODataResult, ODataEndpoint, ODataResource};
 
 pub use odata_model;
 
 /// Parse an OData v4 request Url
 /// ```rust
 /// use odata_parser::parse_url;
-/// use odata_model::{ODataResource, ODataResourceKind};
+/// use odata_model::{ODataEndpoint, ODataResource, ODataResourceKind};
 ///
+/// let endpoint = ODataEndpoint::new("http://services.odata.org", Some("V4"), "TripPinService");
 /// let url = "http://services.odata.org/V4/TripPinService/People('O''Neil')";
-/// let resource = parse_url(url).expect("Failed to create a resource from the URL");
+/// let resource = parse_url(&endpoint, url).expect("Failed to create a resource from the URL");
 ///
 /// assert_eq!(resource.name, "People");
 /// assert_eq!(resource.key.unwrap().to_string(), "O'Neil");
 /// ```
-pub fn parse_url(url: &str) -> ODataResult<ODataResource> {
-    let resource = ODataResource::try_from(url)?;
+pub fn parse_url(endpoint: &ODataEndpoint, url: &str) -> ODataResult<ODataResource> {
+    let resource = endpoint.parse_resource(url)?;
     Ok(resource)
 }

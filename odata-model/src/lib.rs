@@ -1,23 +1,23 @@
 pub mod error;
 
-use error::ODataError;
+use error::{ODataError, ODataResult};
 use percent_encoding::percent_decode_str;
 use serde::{Deserialize, Serialize};
 use url::Url;
 
 pub struct ODataEndpoint {
     pub base_url: String,
-    pub version: String,
+    pub version: Option<String>,
     pub service: String,
     pub resources: Vec<ODataResource>,
     pub odata_context: Option<String>,
 }
 
 impl ODataEndpoint {
-    pub fn new(base_url: &str, version: &str, service: &str) -> Self {
+    pub fn new(base_url: &str, version: Option<&str>, service: &str) -> Self {
         Self {
             base_url: base_url.to_string(),
-            version: version.to_string(),
+            version: version.map(|v| v.to_string()),
             service: service.to_string(),
             resources: Vec::new(),
             odata_context: None,
@@ -28,13 +28,31 @@ impl ODataEndpoint {
         self.odata_context = Some(service_document.context);
         self.resources = service_document.value.into_iter().map(|value| value.into()).collect();
     }
+
+    pub fn parse_resource(&self, url: &str) -> ODataResult<ODataResource> {
+        let url_path = url.trim_start_matches(self.to_string().as_str());
+        let resource = ODataResource::try_from(url_path)?;
+        Ok(resource)
+    }
+}
+
+impl std::fmt::Display for ODataEndpoint {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let uri = if let Some(version) = &self.version {
+            format!("{}/{}/{}/", self.base_url, version, self.service)
+        } else {
+            format!("{}/{}/", self.base_url, self.service)
+        };
+
+        write!(f, "{}", uri)
+    }
 }
 
 impl TryFrom<&mut ODataEndpoint> for Url {
     type Error = url::ParseError;
 
     fn try_from(endpoint: &mut ODataEndpoint) -> Result<Self, Self::Error> {
-        let uri = format!("{}/{}/{}/", endpoint.base_url, endpoint.version, endpoint.service);
+        let uri = endpoint.to_string();
         Url::parse(&uri)
     }
 }
@@ -45,6 +63,7 @@ pub struct ODataResource {
     pub url: String,
     pub title: Option<String>,
     pub key: Option<Key>,
+    pub property: Option<String>,
 }
 
 #[derive(Default)]
@@ -88,22 +107,35 @@ impl std::fmt::Display for Value {
     }
 }
 
+const PARSE_PREFIX: &str = "http://services.odata.org/V4/TripPinService/";
+
 impl TryFrom<&str> for ODataResource {
     type Error = ODataError;
 
+    /// Try to create a resource from the path of an URL. The path is expected to start with the name of the resource.
+    /// For example: People('russellwhyte')/FirstName
     fn try_from(value: &str) -> Result<Self, Self::Error> {
-        let url = Url::parse(value)?;
+        let value = value.trim_start_matches('/');
+        let value = format!("{PARSE_PREFIX}{value}");
+        let url = Url::parse(&value)?;
         match url.path_segments() {
             None => Err(ODataError::IncompletePath),
-            Some(parts) => {
-                let name = parts.last().unwrap().to_string();
-                let name = percent_decode_str(&name).decode_utf8_lossy();
+            Some(mut parts) => {
+                let Some(name) = parts.nth(2) else {
+                    return Err(ODataError::IncompletePath);
+                };
+
+                let name = percent_decode_str(name).decode_utf8_lossy();
                 let (name, key) = extract_name_and_key(&name);
+
+                let property = parts.next().map(|value| value.to_string());
+
                 Ok(Self {
                     name: name.to_string(),
                     kind: ODataResourceKind::EntitySet,
                     url: value.to_string(),
                     title: None,
+                    property,
                     key,
                 })
             }
@@ -198,6 +230,7 @@ impl From<ServiceDocumentValue> for ODataResource {
             url: value.url,
             title: value.title,
             key: None,
+            property: None,
         }
     }
 }
@@ -208,14 +241,14 @@ mod tests {
 
     #[test]
     fn can_construct_an_url_from_and_endpoint() {
-        let mut endpoint = ODataEndpoint::new("http://services.odata.org", "V4", "TripPinService");
+        let mut endpoint = ODataEndpoint::new("http://services.odata.org", Some("V4"), "TripPinService");
         let url = Url::try_from(&mut endpoint).expect("Failed to construct an URL from the endpoint");
         assert_eq!(url.as_str(), "http://services.odata.org/V4/TripPinService/");
     }
 
     #[test]
     fn can_interpret_service_document() {
-        let mut endpoint = ODataEndpoint::new("http://services.odata.org", "V4", "TripPinService");
+        let mut endpoint = ODataEndpoint::new("http://services.odata.org", Some("V4"), "TripPinService");
         let json = r#"{
             "@odata.context": "http://services.odata.org/V4/TripPinService/$metadata",
             "value": [
@@ -266,7 +299,7 @@ mod tests {
 
     #[test]
     fn can_create_a_resource_from_a_url() {
-        let url = "http://services.odata.org/V4/TripPinService/People('russellwhyte')";
+        let url = "People('russellwhyte')";
         let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
         assert_eq!(resource.name, "People");
         assert_eq!(resource.key.unwrap().to_string(), "russellwhyte")
@@ -274,7 +307,7 @@ mod tests {
 
     #[test]
     fn can_create_a_resource_from_a_url_with_quotes() {
-        let url = "http://services.odata.org/V4/TripPinService/People('O''Neil')";
+        let url = "People('O''Neil')";
         let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
         assert_eq!(resource.name, "People");
         assert_eq!(resource.key.unwrap().to_string(), "O'Neil")
@@ -282,7 +315,7 @@ mod tests {
 
     #[test]
     fn can_create_a_resource_from_a_url_with_escaped_characters() {
-        let url = "http://services.odata.org/V4/TripPinService/People%28%27O%27%27Neil%27%29";
+        let url = "People%28%27O%27%27Neil%27%29";
         let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
         assert_eq!(resource.name, "People");
         assert_eq!(resource.key.unwrap().to_string(), "O'Neil")
@@ -290,7 +323,7 @@ mod tests {
 
     #[test]
     fn can_create_a_resource_from_a_url_with_a_numeric_key() {
-        let url = "http://host/service/Categories(1)";
+        let url = "Categories(1)";
         let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
         assert_eq!(resource.name, "Categories");
         assert_eq!(resource.key.unwrap().to_string(), "1")
@@ -298,7 +331,7 @@ mod tests {
 
     #[test]
     fn can_create_a_resource_from_a_url_with_a_query_option() {
-        let url = "http://host/service/ProductsByColor(color=@color)?@color='red'";
+        let url = "ProductsByColor(color=@color)?@color='red'";
         let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
         assert_eq!(resource.name, "ProductsByColor");
         let key = resource.key.unwrap();
@@ -307,5 +340,14 @@ mod tests {
             assert_eq!(key, "color");
             assert_eq!(value.to_string(), "@color");
         }
+    }
+
+    #[test]
+    fn can_create_a_resource_from_a_url_with_a_property() {
+        let url = "People('russellwhyte')/FirstName";
+        let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
+        assert_eq!(resource.name, "People");
+        assert_eq!(resource.key.unwrap().to_string(), "russellwhyte");
+        assert_eq!(resource.property.unwrap(), "FirstName");
     }
 }
