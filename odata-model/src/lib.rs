@@ -58,6 +58,7 @@ impl TryFrom<&mut ODataEndpoint> for Url {
     }
 }
 
+#[derive(Debug)]
 pub struct ODataResource {
     pub entity: Entity,
     pub kind: ODataResourceKind,
@@ -70,7 +71,7 @@ pub struct ODataResource {
     pub filters: Vec<(FieldFilter, Option<Chain>)>,
 }
 
-#[derive(Default)]
+#[derive(Debug, Default)]
 pub enum ODataResourceKind {
     #[default]
     EntitySet,
@@ -79,17 +80,20 @@ pub enum ODataResourceKind {
     ServiceDocument,
 }
 
+#[derive(Debug, PartialEq)]
 pub enum Key {
     String(String),
     Number(i32),
     KeyValue((String, Value)),
 }
 
+#[derive(Debug)]
 pub struct Entity {
     pub name: String,
     pub key: Option<Key>,
 }
 
+#[derive(Debug)]
 pub struct FieldFilter {
     pub not: bool,
     pub field: String,

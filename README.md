@@ -6,7 +6,11 @@ _This project is in a very early stage of development and not ready for general 
 
 ## Try it out
 
+### Online sample client
 You can run the sample client by executing: `cargo run --bin sample-client`
+
+### Sample server implementation
+You can run the sample server by executing: `cargo run --bin sample-server`
 
 ## DISCLAIMER
 
