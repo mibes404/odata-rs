@@ -11,8 +11,8 @@ pub use odata_model;
 /// let url = "http://services.odata.org/V4/TripPinService/People('O''Neil')";
 /// let resource = parse_url(&endpoint, url).expect("Failed to create a resource from the URL");
 ///
-/// assert_eq!(resource.name, "People");
-/// assert_eq!(resource.key.unwrap().to_string(), "O'Neil");
+/// assert_eq!(resource.entity.name, "People");
+/// assert_eq!(resource.entity.key.unwrap().to_string(), "O'Neil");
 /// ```
 pub fn parse_url(endpoint: &ODataEndpoint, url: &str) -> ODataResult<ODataResource> {
     let resource = endpoint.parse_resource(url)?;

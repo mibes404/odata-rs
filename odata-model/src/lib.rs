@@ -60,13 +60,13 @@ impl TryFrom<&mut ODataEndpoint> for Url {
 }
 
 pub struct ODataResource {
-    pub name: String,
+    pub entity: Entity,
     pub kind: ODataResourceKind,
     pub url: String,
     pub title: Option<String>,
-    pub key: Option<Key>,
     pub property: Option<String>,
     pub operation: Option<Operation>,
+    pub relationships: Vec<Entity>,
 }
 
 #[derive(Default)]
@@ -82,6 +82,20 @@ pub enum Key {
     String(String),
     Number(i32),
     KeyValue((String, Value)),
+}
+
+pub struct Entity {
+    pub name: String,
+    pub key: Option<Key>,
+}
+
+impl std::fmt::Display for Entity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.key {
+            Some(key) => write!(f, "{}({})", self.name, key),
+            None => write!(f, "{}", self.name),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -147,31 +161,40 @@ impl TryFrom<&str> for ODataResource {
                 };
 
                 let name = percent_decode_str(name).decode_utf8_lossy();
-                let (name, key) = extract_name_and_key(&name);
+                let entity = extract_entity(&name);
 
-                let part = interpret_next_part(&mut parts);
+                let mut part;
+                let mut relationships = vec![];
+                let mut property: Option<String> = None;
+                let mut operation = None;
 
-                let (property, operation) = match part {
-                    Some(NextPart::Part(part)) => {
-                        let property = Some(part.to_string());
-                        let operation = interpret_next_part(&mut parts).and_then(|part| match part {
-                            NextPart::Operation(operation) => Some(operation),
-                            _ => None,
-                        });
-                        (property, operation)
-                    }
-                    Some(NextPart::Operation(operation)) => (None, Some(operation)),
-                    None => (None, None),
-                };
+                loop {
+                    part = interpret_next_part(&mut parts);
+
+                    match part {
+                        Some(NextPart::Part(part)) => {
+                            if let Some(property) = property.take() {
+                                // there was more to parse, so this isn't the end of the resource, i.e. not a property
+                                relationships.push(extract_entity(&property));
+                            }
+
+                            property = Some(part.to_string());
+                        }
+                        Some(NextPart::Operation(part)) => {
+                            operation = Some(part);
+                        }
+                        None => break,
+                    };
+                }
 
                 Ok(Self {
-                    name: name.to_string(),
+                    entity,
                     kind: ODataResourceKind::EntitySet,
                     url: value.to_string(),
                     title: None,
                     property,
                     operation,
-                    key,
+                    relationships,
                 })
             }
         }
@@ -193,7 +216,7 @@ fn interpret_next_part<'p>(parts: &'p mut Split<'_, char>) -> Option<NextPart<'p
 }
 
 /// Extract the name and key from a resource name, e.g. People('O''Neil') -> (People, Some(O'Neil))
-fn extract_name_and_key(name: &str) -> (&str, Option<Key>) {
+fn extract_entity(name: &str) -> Entity {
     if name.contains("('") && name.contains("')") {
         let mut parts = name.split("('");
         let name = parts.next().unwrap();
@@ -201,7 +224,10 @@ fn extract_name_and_key(name: &str) -> (&str, Option<Key>) {
         let key = key.trim_end_matches("')");
         let key = key.replace("''", "'");
 
-        return (name, Some(Key::String(key)));
+        return Entity {
+            name: name.to_string(),
+            key: Some(Key::String(key)),
+        };
     }
 
     if name.contains('(') && name.contains(')') {
@@ -217,33 +243,45 @@ fn extract_name_and_key(name: &str) -> (&str, Option<Key>) {
 
             if value.starts_with('\'') && value.ends_with('\'') {
                 let value = value.trim_start_matches('\'').trim_end_matches('\'');
-                return (
-                    name,
-                    Some(Key::KeyValue((key.to_string(), Value::String(value.to_string())))),
-                );
+                return Entity {
+                    name: name.to_string(),
+                    key: Some(Key::KeyValue((key.to_string(), Value::String(value.to_string())))),
+                };
             }
 
             if value.starts_with('@') {
                 let value = value.trim_start_matches('@');
-                return (
-                    name,
-                    Some(Key::KeyValue((key.to_string(), Value::QueryOption(value.to_string())))),
-                );
+                return Entity {
+                    name: name.to_string(),
+                    key: Some(Key::KeyValue((key.to_string(), Value::QueryOption(value.to_string())))),
+                };
             }
 
             if let Ok(num) = value.parse::<i32>() {
-                return (name, Some(Key::KeyValue((key.to_string(), Value::Number(num)))));
+                return Entity {
+                    name: name.to_string(),
+                    key: Some(Key::KeyValue((key.to_string(), Value::Number(num)))),
+                };
             }
 
-            return (name, None);
+            return Entity {
+                name: name.to_string(),
+                key: None,
+            };
         }
 
         if let Ok(num) = key.parse::<i32>() {
-            return (name, Some(Key::Number(num)));
+            return Entity {
+                name: name.to_string(),
+                key: Some(Key::Number(num)),
+            };
         }
     }
 
-    (name, None)
+    Entity {
+        name: name.to_string(),
+        key: None,
+    }
 }
 
 #[derive(Default, Debug, Serialize, Deserialize)]
@@ -266,7 +304,7 @@ pub struct ServiceDocumentValue {
 impl From<ServiceDocumentValue> for ODataResource {
     fn from(value: ServiceDocumentValue) -> Self {
         Self {
-            name: value.name,
+            entity: extract_entity(&value.name),
             kind: match value.kind {
                 Some(kind) => match kind.as_str() {
                     "Singleton" => ODataResourceKind::Singleton,
@@ -278,9 +316,9 @@ impl From<ServiceDocumentValue> for ODataResource {
             },
             url: value.url,
             title: value.title,
-            key: None,
             property: None,
             operation: None,
+            relationships: Vec::new(),
         }
     }
 }
@@ -351,40 +389,40 @@ mod tests {
     fn can_create_a_resource_from_a_url() {
         let url = "People('russellwhyte')";
         let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
-        assert_eq!(resource.name, "People");
-        assert_eq!(resource.key.unwrap().to_string(), "russellwhyte")
+        assert_eq!(resource.entity.name, "People");
+        assert_eq!(resource.entity.key.unwrap().to_string(), "russellwhyte")
     }
 
     #[test]
     fn can_create_a_resource_from_a_url_with_quotes() {
         let url = "People('O''Neil')";
         let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
-        assert_eq!(resource.name, "People");
-        assert_eq!(resource.key.unwrap().to_string(), "O'Neil")
+        assert_eq!(resource.entity.name, "People");
+        assert_eq!(resource.entity.key.unwrap().to_string(), "O'Neil")
     }
 
     #[test]
     fn can_create_a_resource_from_a_url_with_escaped_characters() {
         let url = "People%28%27O%27%27Neil%27%29";
         let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
-        assert_eq!(resource.name, "People");
-        assert_eq!(resource.key.unwrap().to_string(), "O'Neil")
+        assert_eq!(resource.entity.name, "People");
+        assert_eq!(resource.entity.key.unwrap().to_string(), "O'Neil")
     }
 
     #[test]
     fn can_create_a_resource_from_a_url_with_a_numeric_key() {
         let url = "Categories(1)";
         let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
-        assert_eq!(resource.name, "Categories");
-        assert_eq!(resource.key.unwrap().to_string(), "1")
+        assert_eq!(resource.entity.name, "Categories");
+        assert_eq!(resource.entity.key.unwrap().to_string(), "1")
     }
 
     #[test]
     fn can_create_a_resource_from_a_url_with_a_query_option() {
         let url = "ProductsByColor(color=@color)?@color='red'";
         let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
-        assert_eq!(resource.name, "ProductsByColor");
-        let key = resource.key.unwrap();
+        assert_eq!(resource.entity.name, "ProductsByColor");
+        let key = resource.entity.key.unwrap();
         assert_eq!(key.to_string(), "color=@color");
         if let Key::KeyValue((key, value)) = key {
             assert_eq!(key, "color");
@@ -396,8 +434,8 @@ mod tests {
     fn can_create_a_resource_from_a_url_with_a_property() {
         let url = "People('russellwhyte')/FirstName";
         let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
-        assert_eq!(resource.name, "People");
-        assert_eq!(resource.key.unwrap().to_string(), "russellwhyte");
+        assert_eq!(resource.entity.name, "People");
+        assert_eq!(resource.entity.key.unwrap().to_string(), "russellwhyte");
         assert_eq!(resource.property.unwrap(), "FirstName");
         assert!(resource.operation.is_none());
     }
@@ -406,8 +444,8 @@ mod tests {
     fn can_create_a_resource_from_a_url_with_a_property_value() {
         let url = "People('russellwhyte')/FirstName/$value";
         let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
-        assert_eq!(resource.name, "People");
-        assert_eq!(resource.key.unwrap().to_string(), "russellwhyte");
+        assert_eq!(resource.entity.name, "People");
+        assert_eq!(resource.entity.key.unwrap().to_string(), "russellwhyte");
         assert_eq!(resource.property.unwrap(), "FirstName");
         assert_eq!(resource.operation.unwrap(), Operation::Value);
     }
@@ -416,7 +454,19 @@ mod tests {
     fn can_create_a_resource_from_a_url_with_a_count_operation() {
         let url = "People/$count";
         let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
-        assert_eq!(resource.name, "People");
+        assert_eq!(resource.entity.name, "People");
         assert_eq!(resource.operation.unwrap(), Operation::Count);
+    }
+
+    #[test]
+    fn can_create_a_resource_from_a_url_with_related_entities() {
+        let url = "People('russellwhyte')/Friends('scottketchum')/AddressInfo";
+        let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
+        assert_eq!(resource.entity.name, "People");
+        assert_eq!(resource.relationships.len(), 1);
+        let relationship = &resource.relationships[0];
+        assert_eq!(relationship.name, "Friends");
+        assert_eq!(relationship.key.as_ref().unwrap().to_string(), "scottketchum");
+        assert_eq!(resource.property.unwrap(), "AddressInfo");
     }
 }

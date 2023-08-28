@@ -7,7 +7,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("Found these resources @ {}", client.url());
     for resource in model.resources {
-        println!("  - {}", resource.name);
+        println!("  - {}", resource.entity);
     }
 
     Ok(())
