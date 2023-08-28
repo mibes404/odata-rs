@@ -6,6 +6,8 @@ pub enum ODataError {
     Url(#[from] url::ParseError),
     #[error("invalid OData Url; incomplete path")]
     IncompletePath,
+    #[error("the operation is not supported")]
+    InvalidOperation,
 }
 
 pub type ODataResult<T> = Result<T, ODataError>;

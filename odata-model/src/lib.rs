@@ -1,5 +1,7 @@
 pub mod error;
 
+use std::str::Split;
+
 use error::{ODataError, ODataResult};
 use percent_encoding::percent_decode_str;
 use serde::{Deserialize, Serialize};
@@ -64,6 +66,7 @@ pub struct ODataResource {
     pub title: Option<String>,
     pub key: Option<Key>,
     pub property: Option<String>,
+    pub operation: Option<Operation>,
 }
 
 #[derive(Default)]
@@ -79,6 +82,24 @@ pub enum Key {
     String(String),
     Number(i32),
     KeyValue((String, Value)),
+}
+
+#[derive(Debug, PartialEq)]
+pub enum Operation {
+    Count,
+    Value,
+}
+
+impl TryFrom<&str> for Operation {
+    type Error = ODataError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        match value {
+            "$count" => Ok(Self::Count),
+            "$value" => Ok(Self::Value),
+            _ => Err(ODataError::InvalidOperation),
+        }
+    }
 }
 
 impl std::fmt::Display for Key {
@@ -128,7 +149,20 @@ impl TryFrom<&str> for ODataResource {
                 let name = percent_decode_str(name).decode_utf8_lossy();
                 let (name, key) = extract_name_and_key(&name);
 
-                let property = parts.next().map(|value| value.to_string());
+                let part = interpret_next_part(&mut parts);
+
+                let (property, operation) = match part {
+                    Some(NextPart::Part(part)) => {
+                        let property = Some(part.to_string());
+                        let operation = interpret_next_part(&mut parts).and_then(|part| match part {
+                            NextPart::Operation(operation) => Some(operation),
+                            _ => None,
+                        });
+                        (property, operation)
+                    }
+                    Some(NextPart::Operation(operation)) => (None, Some(operation)),
+                    None => (None, None),
+                };
 
                 Ok(Self {
                     name: name.to_string(),
@@ -136,11 +170,26 @@ impl TryFrom<&str> for ODataResource {
                     url: value.to_string(),
                     title: None,
                     property,
+                    operation,
                     key,
                 })
             }
         }
     }
+}
+
+enum NextPart<'s> {
+    Part(&'s str),
+    Operation(Operation),
+}
+
+fn interpret_next_part<'p>(parts: &'p mut Split<'_, char>) -> Option<NextPart<'p>> {
+    let part = parts.next();
+
+    part.map(|part| match Operation::try_from(part) {
+        Ok(operation) => NextPart::Operation(operation),
+        _ => NextPart::Part(part),
+    })
 }
 
 /// Extract the name and key from a resource name, e.g. People('O''Neil') -> (People, Some(O'Neil))
@@ -231,6 +280,7 @@ impl From<ServiceDocumentValue> for ODataResource {
             title: value.title,
             key: None,
             property: None,
+            operation: None,
         }
     }
 }
@@ -349,5 +399,24 @@ mod tests {
         assert_eq!(resource.name, "People");
         assert_eq!(resource.key.unwrap().to_string(), "russellwhyte");
         assert_eq!(resource.property.unwrap(), "FirstName");
+        assert!(resource.operation.is_none());
+    }
+
+    #[test]
+    fn can_create_a_resource_from_a_url_with_a_property_value() {
+        let url = "People('russellwhyte')/FirstName/$value";
+        let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
+        assert_eq!(resource.name, "People");
+        assert_eq!(resource.key.unwrap().to_string(), "russellwhyte");
+        assert_eq!(resource.property.unwrap(), "FirstName");
+        assert_eq!(resource.operation.unwrap(), Operation::Value);
+    }
+
+    #[test]
+    fn can_create_a_resource_from_a_url_with_a_count_operation() {
+        let url = "People/$count";
+        let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
+        assert_eq!(resource.name, "People");
+        assert_eq!(resource.operation.unwrap(), Operation::Count);
     }
 }
