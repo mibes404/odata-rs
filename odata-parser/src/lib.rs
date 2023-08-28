@@ -1,11 +1,11 @@
-use odata_model::{error::ODataResult, ODataEndpoint, ODataResource};
+use odata_model::{error::ODataResult, resource::ODataResource, ODataEndpoint};
 
 pub use odata_model;
 
 /// Parse an OData v4 request Url
 /// ```rust
 /// use odata_parser::parse_url;
-/// use odata_model::{ODataEndpoint, ODataResource, ODataResourceKind};
+/// use odata_model::{ODataEndpoint, resource::{ODataResource, ODataResourceKind}};
 ///
 /// let endpoint = ODataEndpoint::new("http://services.odata.org", Some("V4"), "TripPinService");
 /// let url = "http://services.odata.org/V4/TripPinService/People('O''Neil')";
