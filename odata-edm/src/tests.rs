@@ -1,27 +1,34 @@
-use yaserde::de::from_str;
-
 use super::edm::Edmx;
+use quick_xml::de::from_str;
 
 #[test]
 fn can_deserialize_sample() {
     const SAMPLE_EDM: &str = include_str!("../test_data/sample_edm.xml");
     let edmx: Edmx = from_str(SAMPLE_EDM).expect("Failed to deserialize sample EDM");
     assert_eq!(edmx.version, "4.0");
-    assert_eq!(edmx.data_services.schema.len(), 1);
+    let schema = edmx.data_services.schema.unwrap();
+    assert_eq!(schema.len(), 1);
 
-    let schema = &edmx.data_services.schema[0];
-    assert_eq!(schema.entity_type.len(), 9);
+    let schema = &schema[0];
+    assert_eq!(schema.entity_type.as_ref().unwrap().len(), 9);
 
-    let first_entity_type = &schema.entity_type[0];
+    let first_entity_type = &schema.entity_type.as_ref().unwrap()[0];
     assert_eq!(first_entity_type.name, "Photo");
-    assert_eq!(first_entity_type.annotation.len(), 1);
-    assert_eq!(first_entity_type.key.len(), 1);
+    assert_eq!(first_entity_type.annotation.as_ref().unwrap().len(), 1);
+    assert_eq!(first_entity_type.key.as_ref().unwrap().len(), 1);
 
-    let first_key = &first_entity_type.key[0];
-    assert_eq!(first_key.property_ref.len(), 1);
-    assert_eq!(first_key.property_ref[0].name, "Id");
+    let first_key = &first_entity_type.key.as_ref().unwrap()[0];
+    assert_eq!(first_key.property_ref.as_ref().unwrap().len(), 1);
+    assert_eq!(first_key.property_ref.as_ref().unwrap()[0].name, "Id");
 
-    let first_annotation = &first_entity_type.annotation[0];
+    let first_annotation = &first_entity_type.annotation.as_ref().unwrap()[0];
     assert_eq!(first_annotation.term, "Org.OData.Core.V1.AcceptableMediaTypes");
-    assert_eq!(first_annotation.collection.len(), 1);
+    assert_eq!(first_annotation.collection.as_ref().unwrap().len(), 1);
+    assert_eq!(
+        first_annotation.collection.as_ref().unwrap()[0]
+            .string
+            .as_ref()
+            .unwrap()[0],
+        "image/jpeg"
+    );
 }
