@@ -282,3 +282,13 @@ fn can_create_a_resource_from_a_url_with_a_has_filter() {
         FilterOperation::Has("Sales.Pattern'Yellow'".to_string())
     );
 }
+
+#[test]
+fn can_create_a_resource_from_a_url_with_format() {
+    let url = "People?$format=application/json;odata.metadata=minimal;odata.streaming=true";
+    let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
+    assert_eq!(resource.entity.name, "People");
+    assert_eq!(resource.requested_format.format, "application/json");
+    assert_eq!(resource.requested_format.metadata, ODataMetaData::Minimal);
+    assert!(resource.requested_format.streaming);
+}

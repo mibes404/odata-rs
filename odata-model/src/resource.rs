@@ -11,6 +11,8 @@ pub struct ODataResource {
     pub relationships: Vec<Entity>,
     pub search: Option<String>,
     pub filters: Vec<(FieldFilter, Option<Chain>)>,
+    /// The requested format; defaults to application/json when not set
+    pub requested_format: ODataFormat,
 }
 
 #[derive(Debug, Default)]
@@ -35,6 +37,15 @@ pub struct Entity {
     pub key: Option<Key>,
 }
 
+impl std::fmt::Display for Entity {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match &self.key {
+            Some(key) => write!(f, "{}({})", self.name, key),
+            None => write!(f, "{}", self.name),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct FieldFilter {
     pub not: bool,
@@ -42,11 +53,57 @@ pub struct FieldFilter {
     pub operation: FilterOperation,
 }
 
-impl std::fmt::Display for Entity {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match &self.key {
-            Some(key) => write!(f, "{}({})", self.name, key),
-            None => write!(f, "{}", self.name),
+#[derive(Debug)]
+pub struct ODataFormat {
+    pub format: String,
+    pub metadata: ODataMetaData,
+    pub streaming: bool,
+}
+
+impl Default for ODataFormat {
+    fn default() -> Self {
+        Self {
+            format: "application/json".to_string(),
+            metadata: ODataMetaData::default(),
+            streaming: false,
+        }
+    }
+}
+
+impl From<&str> for ODataFormat {
+    fn from(value: &str) -> Self {
+        let mut result = Self::default();
+        let parts = value.split(';');
+        for part in parts {
+            if let Some((key, value)) = part.split_once('=') {
+                match key {
+                    "metadata" | "odata.metadata" => result.metadata = ODataMetaData::from(value),
+                    "streaming" | "odata.streaming" => result.streaming = bool::from_str(value).unwrap_or(false),
+                    "format" => result.format = value.to_string(),
+                    _ => (),
+                }
+            }
+        }
+
+        result
+    }
+}
+
+#[derive(Debug, PartialEq, Default)]
+pub enum ODataMetaData {
+    None,
+    #[default]
+    Minimal,
+    Full,
+}
+
+impl From<&str> for ODataMetaData {
+    fn from(value: &str) -> Self {
+        match value {
+            "none" => Self::None,
+            "minimal" => Self::Minimal,
+            "full" => Self::Full,
+            _ => Self::default(),
         }
     }
 }
@@ -144,6 +201,10 @@ impl TryFrom<&str> for ODataResource {
 
             if key == "$filter" {
                 result.filters = parse_filter(value.to_string())?;
+            }
+
+            if key == "$format" {
+                result.requested_format = value.as_ref().into();
             }
         }
 
@@ -305,6 +366,7 @@ fn parse_path(url: &Url, value: String) -> ODataResult<ODataResource> {
                 relationships,
                 search: None,
                 filters: Vec::new(),
+                requested_format: ODataFormat::default(),
             })
         }
     }
@@ -435,6 +497,7 @@ impl From<ServiceDocumentValue> for ODataResource {
             relationships: Vec::new(),
             search: None,
             filters: Vec::new(),
+            requested_format: ODataFormat::default(),
         }
     }
 }
