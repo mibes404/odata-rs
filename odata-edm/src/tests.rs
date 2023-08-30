@@ -1,5 +1,3 @@
-use std::fs;
-
 use super::edm::Edmx;
 use quick_xml::de::from_str;
 
@@ -26,14 +24,10 @@ fn can_deserialize_sample() {
 
     let first_annotation = &first_entity_type.annotation.as_ref().unwrap()[0];
     assert_eq!(first_annotation.term, "Org.OData.Core.V1.AcceptableMediaTypes");
-    assert_eq!(first_annotation.collection.as_ref().unwrap().len(), 1);
-    assert_eq!(
-        first_annotation.collection.as_ref().unwrap()[0]
-            .string
-            .as_ref()
-            .unwrap()[0],
-        "image/jpeg"
-    );
+
+    let collection = first_annotation.collection.as_ref().unwrap();
+    assert_eq!(collection.len(), 1);
+    assert_eq!(collection[0].string.as_ref().unwrap()[0], "image/jpeg");
 }
 
 #[test]
