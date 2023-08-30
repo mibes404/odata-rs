@@ -1,3 +1,5 @@
+use std::fs;
+
 use super::edm::Edmx;
 use quick_xml::de::from_str;
 
@@ -5,8 +7,9 @@ use quick_xml::de::from_str;
 fn can_deserialize_sample() {
     const SAMPLE_EDM: &str = include_str!("../test_data/sample_edm.xml");
     let edmx: Edmx = from_str(SAMPLE_EDM).expect("Failed to deserialize sample EDM");
+
     assert_eq!(edmx.version, "4.0");
-    let schema = edmx.data_services.schema.unwrap();
+    let schema = edmx.data_services.schema;
     assert_eq!(schema.len(), 1);
 
     let schema = &schema[0];
@@ -31,4 +34,17 @@ fn can_deserialize_sample() {
             .unwrap()[0],
         "image/jpeg"
     );
+}
+
+#[test]
+fn can_serialize_example() {
+    const SAMPLE_EDM: &str = include_str!("../test_data/sample_edm.xml");
+    let edmx: Edmx = from_str(SAMPLE_EDM).expect("Failed to deserialize sample EDM");
+
+    let xml_header = r#"<?xml version="1.0" encoding="utf-8"?>"#;
+    let xml = quick_xml::se::to_string(&edmx).expect("Failed to serialize sample EDM");
+    let xml = format!("{}\n{}", xml_header, xml);
+    eprintln!("{}", xml);
+
+    let _edmx: Edmx = from_str(&xml).expect("Failed to deserialize sample EDM");
 }
