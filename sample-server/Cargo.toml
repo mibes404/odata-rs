@@ -7,4 +7,7 @@ edition = "2021"
 
 [dependencies]
 tokio = { version = "1.15.0", features = ["full"] }
+axum = "0.6"
+serde_json = "1"
 odata-parser = { path = "../odata-parser" }
+odata-web-helpers = { path = "../odata-web-helpers" }

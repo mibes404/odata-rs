@@ -1,3 +1,5 @@
+use http::Uri;
+
 use super::*;
 
 #[derive(Debug)]
@@ -180,11 +182,11 @@ impl std::fmt::Display for Value {
 
 const PARSE_PREFIX: &str = "http://services.odata.org/V4/TripPinService/";
 
+/// Try to create a resource from the path of an URL. The path is expected to start with the name of the resource.
+/// For example: People('russellwhyte')/FirstName
 impl TryFrom<&str> for ODataResource {
     type Error = ODataError;
 
-    /// Try to create a resource from the path of an URL. The path is expected to start with the name of the resource.
-    /// For example: People('russellwhyte')/FirstName
     fn try_from(value: &str) -> Result<Self, Self::Error> {
         let value = value.trim_start_matches('/');
         let value = format!("{PARSE_PREFIX}{value}");
@@ -209,6 +211,16 @@ impl TryFrom<&str> for ODataResource {
         }
 
         Ok(result)
+    }
+}
+
+impl TryFrom<&Uri> for ODataResource {
+    type Error = ODataError;
+
+    fn try_from(value: &Uri) -> Result<Self, Self::Error> {
+        let p_and_q = value.path_and_query().ok_or(error::ODataError::IncompletePath)?;
+        let path = p_and_q.as_str();
+        Self::try_from(path)
     }
 }
 
