@@ -12,7 +12,7 @@ You can run the sample client by executing: `cargo run --bin sample-client`
 ### Sample server implementation
 You can run the sample server by executing: `cargo run --bin sample-server`
 
-Try a request with something like: http://localhost:8080/V4/TripPinService/Products?$filter=Name eq 'Milk' and Price lt 2.55
+Try a request with something like: `http://localhost:8080/V4/TripPinService/Products?$filter=Name eq 'Milk' and Price lt 2.55`
 
 ## DISCLAIMER
 
