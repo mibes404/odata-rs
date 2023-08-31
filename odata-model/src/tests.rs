@@ -158,9 +158,13 @@ fn can_create_a_resource_from_a_url_with_a_filter_eq_operation() {
     let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
     assert_eq!(resource.entity.name, "Products");
     assert_eq!(resource.filters.len(), 1);
-    let (filter, _) = &resource.filters[0];
-    assert_eq!(filter.field, "Name");
-    assert_eq!(filter.operation, FilterOperation::Eq(Value::String("Milk".to_string())));
+    let (filter, _) = &resource.filters.contents()[0];
+    let contents = filter.contents().unwrap();
+    assert_eq!(contents.field, "Name");
+    assert_eq!(
+        contents.operation,
+        FilterOperation::Eq(Value::String("Milk".to_string()))
+    );
 }
 
 #[test]
@@ -169,9 +173,13 @@ fn can_create_a_resource_from_a_url_with_a_filter_ne_operation() {
     let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
     assert_eq!(resource.entity.name, "Products");
     assert_eq!(resource.filters.len(), 1);
-    let (filter, _) = &resource.filters[0];
-    assert_eq!(filter.field, "Name");
-    assert_eq!(filter.operation, FilterOperation::Ne(Value::String("Milk".to_string())));
+    let (filter, _) = &resource.filters.contents()[0];
+    let contents = filter.contents().unwrap();
+    assert_eq!(contents.field, "Name");
+    assert_eq!(
+        contents.operation,
+        FilterOperation::Ne(Value::String("Milk".to_string()))
+    );
 }
 
 #[test]
@@ -180,13 +188,18 @@ fn can_create_a_resource_from_a_url_with_a_filter_eq_and_lt_operation() {
     let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
     assert_eq!(resource.entity.name, "Products");
     assert_eq!(resource.filters.len(), 2);
-    let (filter, chain) = &resource.filters[0];
-    assert_eq!(filter.field, "Name");
+    let (filter, chain) = &resource.filters.contents()[0];
+    let contents = filter.contents().unwrap();
+    assert_eq!(contents.field, "Name");
+    assert_eq!(
+        contents.operation,
+        FilterOperation::Eq(Value::String("Milk".to_string()))
+    );
     assert_eq!(chain, &Some(Chain::And));
-    assert_eq!(filter.operation, FilterOperation::Eq(Value::String("Milk".to_string())));
-    let (filter, _) = &resource.filters[1];
-    assert_eq!(filter.field, "Price");
-    assert_eq!(filter.operation, FilterOperation::Lt(Value::Decimal(dec!(2.55))));
+    let (filter, _) = &resource.filters.contents()[1];
+    let contents = filter.contents().unwrap();
+    assert_eq!(contents.field, "Price");
+    assert_eq!(contents.operation, FilterOperation::Lt(Value::Decimal(dec!(2.55))));
 }
 
 #[test]
@@ -195,13 +208,18 @@ fn can_create_a_resource_from_a_url_with_a_filter_eq_or_lt_operation() {
     let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
     assert_eq!(resource.entity.name, "Products");
     assert_eq!(resource.filters.len(), 2);
-    let (filter, chain) = &resource.filters[0];
-    assert_eq!(filter.field, "Name");
+    let (filter, chain) = &resource.filters.contents()[0];
+    let contents = filter.contents().unwrap();
+    assert_eq!(contents.field, "Name");
     assert_eq!(chain, &Some(Chain::Or));
-    assert_eq!(filter.operation, FilterOperation::Eq(Value::String("Milk".to_string())));
-    let (filter, _) = &resource.filters[1];
-    assert_eq!(filter.field, "Price");
-    assert_eq!(filter.operation, FilterOperation::Lt(Value::Decimal(dec!(2.55))));
+    assert_eq!(
+        contents.operation,
+        FilterOperation::Eq(Value::String("Milk".to_string()))
+    );
+    let (filter, _chain) = &resource.filters.contents()[1];
+    let contents = filter.contents().unwrap();
+    assert_eq!(contents.field, "Price");
+    assert_eq!(contents.operation, FilterOperation::Lt(Value::Decimal(dec!(2.55))));
 }
 
 #[test]
@@ -210,10 +228,11 @@ fn can_create_a_resource_from_a_url_with_a_filter_in_operation() {
     let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
     assert_eq!(resource.entity.name, "Products");
     assert_eq!(resource.filters.len(), 1);
-    let (filter, _) = &resource.filters[0];
-    assert_eq!(filter.field, "Name");
+    let (filter, _chain) = &resource.filters.contents()[0];
+    let contents = filter.contents().unwrap();
+    assert_eq!(contents.field, "Name");
     assert_eq!(
-        filter.operation,
+        contents.operation,
         FilterOperation::In(vec![
             Value::String("Milk".to_string()),
             Value::String("Butter".to_string()),
@@ -228,10 +247,11 @@ fn can_create_a_resource_from_a_url_with_a_filter_in_operation_wo_spaces() {
     let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
     assert_eq!(resource.entity.name, "Products");
     assert_eq!(resource.filters.len(), 1);
-    let (filter, _) = &resource.filters[0];
-    assert_eq!(filter.field, "Name");
+    let (filter, _chain) = &resource.filters.contents()[0];
+    let contents = filter.contents().unwrap();
+    assert_eq!(contents.field, "Name");
     assert_eq!(
-        filter.operation,
+        contents.operation,
         FilterOperation::In(vec![
             Value::String("Milk".to_string()),
             Value::String("Butter".to_string()),
@@ -246,10 +266,11 @@ fn can_create_a_resource_from_a_url_with_a_filter_in_numbers() {
     let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
     assert_eq!(resource.entity.name, "Products");
     assert_eq!(resource.filters.len(), 1);
-    let (filter, _) = &resource.filters[0];
-    assert_eq!(filter.field, "Price");
+    let (filter, _chain) = &resource.filters.contents()[0];
+    let contents = filter.contents().unwrap();
+    assert_eq!(contents.field, "Price");
     assert_eq!(
-        filter.operation,
+        contents.operation,
         FilterOperation::In(vec![Value::Integer(1), Value::Integer(2), Value::Integer(3),])
     );
 }
@@ -260,10 +281,11 @@ fn can_create_a_resource_from_a_url_with_a_not_function_filter() {
     let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
     assert_eq!(resource.entity.name, "Products");
     assert_eq!(resource.filters.len(), 1);
-    let (filter, _) = &resource.filters[0];
-    assert!(filter.not);
+    let (filter, _chain) = &resource.filters.contents()[0];
+    let contents = filter.contents().unwrap();
+    assert!(contents.not);
     assert_eq!(
-        filter.operation,
+        contents.operation,
         FilterOperation::Function("endswith(Name,'ilk')".to_string())
     );
 }
@@ -274,13 +296,58 @@ fn can_create_a_resource_from_a_url_with_a_has_filter() {
     let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
     assert_eq!(resource.entity.name, "Products");
     assert_eq!(resource.filters.len(), 1);
-    let (filter, _) = &resource.filters[0];
-    assert!(!filter.not);
-    assert_eq!(filter.field, "style");
+    let (filter, _chain) = &resource.filters.contents()[0];
+    let contents = filter.contents().unwrap();
+    assert!(!contents.not);
+    assert_eq!(contents.field, "style");
     assert_eq!(
-        filter.operation,
+        contents.operation,
         FilterOperation::Has("Sales.Pattern'Yellow'".to_string())
     );
+}
+
+#[test]
+fn can_create_a_resource_with_a_logical_filter() {
+    let url = "People?$filter=(not(contains(FirstName,'Q')) or (Gender eq Microsoft.OData.SampleService.Models.TripPin.PersonGender'Male')) and not(LastName eq 'Ketchum')";
+    let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
+    assert_eq!(resource.filters.0.len(), 2);
+    let (filter, chain) = &resource.filters.contents()[0];
+    let (not, nested) = filter.nested().unwrap();
+    assert!(!not);
+    assert_eq!(chain, &Some(Chain::And));
+    assert_eq!(nested.0.len(), 2);
+
+    // First filter
+    let (filter, _chain) = &nested.0[0];
+    let FieldFilterContents {
+        not,
+        field: _field,
+        operation,
+    } = filter.contents().unwrap();
+    assert!(not);
+    assert_eq!(
+        operation,
+        &FilterOperation::Function("contains(FirstName,'Q')".to_string())
+    );
+
+    // Second filter
+    let (filter, _chain) = &nested.0[1];
+    let FieldFilterContents { not, field, operation } = filter.contents().unwrap();
+    assert!(!not);
+    assert_eq!(field, "Gender");
+    assert_eq!(
+        operation,
+        &FilterOperation::Eq(Value::String(
+            "Microsoft.OData.SampleService.Models.TripPin.PersonGender'Male'".to_string()
+        ))
+    );
+
+    // Third filter
+    let (filter, _chain) = &resource.filters.contents()[1];
+    let FieldFilterContents { not, field, operation } = filter.contents().unwrap();
+    assert!(not);
+    assert_eq!(field, "LastName");
+    assert_eq!(operation, &FilterOperation::Eq(Value::String("Ketchum".to_string())));
 }
 
 #[test]

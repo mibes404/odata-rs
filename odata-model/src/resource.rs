@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use http::Uri;
 
 use super::*;
@@ -12,9 +14,26 @@ pub struct ODataResource {
     pub operation: Option<Operation>,
     pub relationships: Vec<Entity>,
     pub search: Option<String>,
-    pub filters: Vec<(FieldFilter, Option<Chain>)>,
+    pub filters: Filters,
     /// The requested format; defaults to application/json when not set
     pub requested_format: ODataFormat,
+}
+
+#[derive(Debug)]
+pub struct Filters(pub Vec<(FieldFilter, Option<Chain>)>);
+
+impl Filters {
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    pub fn contents(&self) -> &[(FieldFilter, Option<Chain>)] {
+        &self.0
+    }
 }
 
 #[derive(Debug, Default)]
@@ -49,10 +68,34 @@ impl std::fmt::Display for Entity {
 }
 
 #[derive(Debug)]
-pub struct FieldFilter {
+pub enum FieldFilter {
+    // The field and the operation
+    Contents(FieldFilterContents),
+    // A nested filter; the bool indicates whether the filter is negated
+    Nested((bool, Filters)),
+}
+
+#[derive(Debug)]
+pub struct FieldFilterContents {
     pub not: bool,
     pub field: String,
     pub operation: FilterOperation,
+}
+
+impl FieldFilter {
+    pub fn contents(&self) -> Option<&FieldFilterContents> {
+        match &self {
+            Self::Contents(operation) => Some(operation),
+            _ => None,
+        }
+    }
+
+    pub fn nested(&self) -> Option<&(bool, Filters)> {
+        match &self {
+            Self::Nested(nested) => Some(nested),
+            _ => None,
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -202,7 +245,7 @@ impl TryFrom<&str> for ODataResource {
             }
 
             if key == "$filter" {
-                result.filters = parse_filter(value.to_string())?;
+                result.filters = parse_filter(value.as_ref())?;
             }
 
             if key == "$format" {
@@ -224,40 +267,108 @@ impl TryFrom<&Uri> for ODataResource {
     }
 }
 
-impl TryFrom<&mut Split<'_, char>> for FieldFilter {
-    type Error = ODataError;
+fn parse_filter_field(parts: &mut Split<'_, char>) -> ODataResult<FieldFilter> {
+    let mut field = parts.next().ok_or(error::ODataError::IncompletePath)?;
 
-    fn try_from(parts: &mut Split<'_, char>) -> Result<Self, Self::Error> {
-        let field = parts.next().ok_or(error::ODataError::IncompletePath)?;
-        if field.to_lowercase() == "not" {
-            let function = parts.next().ok_or(error::ODataError::IncompletePath)?;
+    let not = field.starts_with("not");
+    if not {
+        field = field.trim_start_matches("not").trim();
+    }
 
-            Ok(Self {
-                not: true,
-                field: field.to_string(),
-                operation: FilterOperation::Function(function.to_string()),
-            })
-        } else {
-            let operation = parts.next().ok_or(error::ODataError::IncompletePath)?;
-            let value = parts.next().ok_or(error::ODataError::IncompletePath)?;
+    let is_grouped = field.starts_with('(');
+    if is_grouped {
+        let nested_filter = find_closing_bracket(field, parts)?;
+        let nested_filters = parse_filter(&nested_filter)?;
+        let nested_filter = collapse_filters((not, nested_filters));
+        return Ok(nested_filter);
+    }
 
-            Ok(Self {
-                not: false,
-                field: field.to_string(),
-                operation: match operation.to_lowercase().as_str() {
-                    "eq" => FilterOperation::Eq(extract_value(value)),
-                    "ne" => FilterOperation::Ne(extract_value(value)),
-                    "gt" => FilterOperation::Gt(extract_value(value)),
-                    "ge" => FilterOperation::Ge(extract_value(value)),
-                    "lt" => FilterOperation::Lt(extract_value(value)),
-                    "le" => FilterOperation::Le(extract_value(value)),
-                    "in" => FilterOperation::In(eat_in_list_parts(Some(value), parts)),
-                    "has" => FilterOperation::Has(value.to_string()),
-                    _ => FilterOperation::Function(value.to_string()),
-                },
-            })
+    let part = if field.is_empty() {
+        // handle constructs like "not Name eq 'Milk'"
+        parts.next().ok_or(error::ODataError::IncompletePath)?
+    } else {
+        field
+    };
+
+    let is_function = part.contains('(') && part.contains(')');
+
+    if is_function {
+        let function = part;
+        Ok(FieldFilter::Contents(FieldFilterContents {
+            not,
+            field: field.to_string(),
+            operation: FilterOperation::Function(function.to_string()),
+        }))
+    } else {
+        let operation = parts.next().ok_or(error::ODataError::IncompletePath)?;
+        let value = parts.next().ok_or(error::ODataError::IncompletePath)?;
+
+        Ok(FieldFilter::Contents(FieldFilterContents {
+            not,
+            field: field.to_string(),
+            operation: match operation.to_lowercase().as_str() {
+                "eq" => FilterOperation::Eq(extract_value(value)),
+                "ne" => FilterOperation::Ne(extract_value(value)),
+                "gt" => FilterOperation::Gt(extract_value(value)),
+                "ge" => FilterOperation::Ge(extract_value(value)),
+                "lt" => FilterOperation::Lt(extract_value(value)),
+                "le" => FilterOperation::Le(extract_value(value)),
+                "in" => FilterOperation::In(eat_in_list_parts(Some(value), parts)),
+                "has" => FilterOperation::Has(value.to_string()),
+                _ => FilterOperation::Function(value.to_string()),
+            },
+        }))
+    }
+}
+
+fn collapse_filters(nested_filters: (bool, Filters)) -> FieldFilter {
+    // Collapse a nested vec of filters with a single element into a FieldFilter with a single contents element
+    let (not, mut nested_filters) = nested_filters;
+    if nested_filters.0.len() == 1 {
+        let (filter, _chain) = nested_filters.0.pop().unwrap();
+        let contents = match filter {
+            FieldFilter::Contents(contents) => contents,
+            _ => panic!("Invalid filter"),
+        };
+        return FieldFilter::Contents(FieldFilterContents {
+            not,
+            field: contents.field,
+            operation: contents.operation,
+        });
+    }
+
+    FieldFilter::Nested((not, nested_filters))
+}
+
+fn find_closing_bracket<'f>(field: &'f str, parts: &'f mut Split<'_, char>) -> ODataResult<Cow<'f, str>> {
+    // first check if the field is already closed by counting the number of opening and closing brackets; if they match, we're done
+    // i.e. handle something like: (not(contains(FirstName,'Q')))
+    let mut open_brackets = field.matches('(').count();
+    let mut close_brackets = field.matches(')').count();
+
+    // we know that field starts with an opening bracket, so we can skip the first one
+    if open_brackets == close_brackets && field.ends_with(')') {
+        return Ok(Cow::from(&field[1..field.len() - 1]));
+    }
+
+    if open_brackets == close_brackets {
+        todo!("Handle this case");
+    }
+
+    // if we get here, we know that the field is not closed yet, so we need to find the closing bracket
+    let mut field = field.to_string();
+    for part in parts {
+        open_brackets += part.matches('(').count();
+        close_brackets += part.matches(')').count();
+
+        field = format!("{} {}", field, part);
+
+        if open_brackets == close_brackets {
+            return Ok(Cow::from(field[1..field.len() - 1].to_string()));
         }
     }
+
+    Err(ODataError::IncompletePath)
 }
 
 fn eat_in_list_parts(mut first_value: Option<&str>, parts: &mut Split<'_, char>) -> Vec<Value> {
@@ -310,12 +421,12 @@ fn eat_inner_list_parts(parts: &mut Split<'_, char>) -> Vec<Value> {
 /// - not endswith(Name,'ilk')
 /// - style has Sales.Pattern'Yellow'
 /// - Name in ('Milk', 'Cheese')
-fn parse_filter(filter_value: String) -> ODataResult<Vec<(FieldFilter, Option<Chain>)>> {
+fn parse_filter(filter_value: &str) -> ODataResult<Filters> {
     let mut filters = Vec::new();
     let mut parts = filter_value.split(' ');
 
     loop {
-        let filter = FieldFilter::try_from(&mut parts)?;
+        let filter = parse_filter_field(&mut parts)?;
         if let Some(chain) = parts.next() {
             let chain = match chain {
                 "and" => Chain::And,
@@ -330,7 +441,7 @@ fn parse_filter(filter_value: String) -> ODataResult<Vec<(FieldFilter, Option<Ch
         }
     }
 
-    Ok(filters)
+    Ok(Filters(filters))
 }
 
 fn parse_path(url: &Url, value: String) -> ODataResult<ODataResource> {
@@ -377,7 +488,7 @@ fn parse_path(url: &Url, value: String) -> ODataResult<ODataResource> {
                 operation,
                 relationships,
                 search: None,
-                filters: Vec::new(),
+                filters: Filters(Vec::new()),
                 requested_format: ODataFormat::default(),
             })
         }
@@ -486,7 +597,11 @@ fn extract_value(value: &str) -> Value {
         return Value::Decimal(num);
     }
 
-    Value::Null
+    if value.is_empty() {
+        return Value::Null;
+    }
+
+    Value::String(value.to_string())
 }
 
 impl From<ServiceDocumentValue> for ODataResource {
@@ -508,7 +623,7 @@ impl From<ServiceDocumentValue> for ODataResource {
             operation: None,
             relationships: Vec::new(),
             search: None,
-            filters: Vec::new(),
+            filters: Filters(Vec::new()),
             requested_format: ODataFormat::default(),
         }
     }
