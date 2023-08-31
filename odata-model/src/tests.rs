@@ -359,3 +359,22 @@ fn can_create_a_resource_from_a_url_with_format() {
     assert_eq!(resource.requested_format.metadata, ODataMetaData::Minimal);
     assert!(resource.requested_format.streaming);
 }
+
+#[test]
+fn can_parse_correct_top_and_skip_values() {
+    let url = "People?$top=10&$skip=20";
+    let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
+    assert_eq!(resource.top, Some(10));
+    assert_eq!(resource.skip, Some(20));
+}
+
+#[test]
+fn can_detect_invalid_top_or_skip_values() {
+    let url = "People?$top=-10&$skip=20";
+    let resource = ODataResource::try_from(url);
+    assert!(resource.is_err());
+
+    let url = "People?$top=10&$skip=-20";
+    let resource = ODataResource::try_from(url);
+    assert!(resource.is_err());
+}

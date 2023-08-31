@@ -17,6 +17,8 @@ pub struct ODataResource {
     pub filters: Filters,
     /// The requested format; defaults to application/json when not set
     pub requested_format: ODataFormat,
+    pub top: Option<u32>,
+    pub skip: Option<u32>,
 }
 
 #[derive(Debug)]
@@ -250,6 +252,24 @@ impl TryFrom<&str> for ODataResource {
 
             if key == "$format" {
                 result.requested_format = value.as_ref().into();
+            }
+
+            if key == "$top" {
+                result.top = Some(
+                    value
+                        .as_ref()
+                        .parse::<u32>()
+                        .map_err(|_| ODataError::InvalidQueryTopSkip)?,
+                );
+            }
+
+            if key == "$skip" {
+                result.skip = Some(
+                    value
+                        .as_ref()
+                        .parse::<u32>()
+                        .map_err(|_| ODataError::InvalidQueryTopSkip)?,
+                );
             }
         }
 
@@ -490,6 +510,8 @@ fn parse_path(url: &Url, value: String) -> ODataResult<ODataResource> {
                 search: None,
                 filters: Filters(Vec::new()),
                 requested_format: ODataFormat::default(),
+                top: None,
+                skip: None,
             })
         }
     }
@@ -625,6 +647,8 @@ impl From<ServiceDocumentValue> for ODataResource {
             search: None,
             filters: Filters(Vec::new()),
             requested_format: ODataFormat::default(),
+            top: None,
+            skip: None,
         }
     }
 }

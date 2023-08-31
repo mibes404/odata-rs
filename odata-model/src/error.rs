@@ -8,6 +8,8 @@ pub enum ODataError {
     IncompletePath,
     #[error("the operation is not supported")]
     InvalidOperation,
+    #[error("invalid OData query; $top and $skip must be a positive integer")]
+    InvalidQueryTopSkip,
 }
 
 pub type ODataResult<T> = Result<T, ODataError>;
