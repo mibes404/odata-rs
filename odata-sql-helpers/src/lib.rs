@@ -2,18 +2,70 @@ use heck::ToSnakeCase;
 use odata_model::resource::{Chain, FieldFilter, FilterOperation, ODataResource, Value};
 use sea_orm::entity::prelude::*;
 use sea_orm::entity::Iterable;
-use sea_orm::Schema;
 use sea_orm::{
-    entity::prelude::PaginatorTrait,
-    sea_query::{ColumnRef, Expr, Func, Iden, IntoCondition, SeaRc, SimpleExpr},
-    ColumnDef, Condition, ConnectionTrait, DbErr, EntityTrait, IntoSimpleExpr, Order, PrimaryKeyToColumn,
-    PrimaryKeyTrait, QueryFilter, QueryOrder, Select,
+    sea_query::{ColumnRef, Expr, Func, IntoCondition, SimpleExpr},
+    Condition, EntityTrait, QueryFilter, Select,
 };
-use std::collections::HashMap;
-use std::str::FromStr;
 
 #[cfg(test)]
 mod tests;
+
+pub struct ColumnList {
+    keys: Vec<String>,
+    values: Vec<SimpleExpr>,
+}
+
+pub struct ColumnListIterator<'a> {
+    items: &'a ColumnList,
+    index: usize,
+}
+
+impl ColumnList {
+    pub fn contains_key(&self, key: &str) -> bool {
+        self.keys.contains(&key.to_string())
+    }
+
+    pub fn get(&self, key: &str) -> Option<&SimpleExpr> {
+        self.values.get(self.keys.iter().position(|k| k == key)?)
+    }
+
+    pub fn iter(&self) -> ColumnListIterator {
+        ColumnListIterator { items: self, index: 0 }
+    }
+
+    pub fn keys(&self) -> Vec<&str> {
+        self.keys.iter().map(|k| k.as_str()).collect()
+    }
+}
+
+impl FromIterator<(String, SimpleExpr)> for ColumnList {
+    fn from_iter<T: IntoIterator<Item = (String, SimpleExpr)>>(iter: T) -> Self {
+        let mut keys = Vec::new();
+        let mut values = Vec::new();
+
+        for (key, value) in iter {
+            keys.push(key);
+            values.push(value);
+        }
+
+        Self { keys, values }
+    }
+}
+
+impl<'i> Iterator for ColumnListIterator<'i> {
+    type Item = (&'i str, &'i SimpleExpr);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.index < self.items.keys.len() {
+            let key = &self.items.keys[self.index];
+            let value = &self.items.values[self.index];
+            self.index += 1;
+            Some((key.as_str(), value))
+        } else {
+            None
+        }
+    }
+}
 
 /// Apply the common Filter to the SeaOrm query
 /// ```ignore
@@ -23,18 +75,18 @@ mod tests;
 /// let filter = ODataResource::default();
 /// SomeEntity::find().with_odata_filter(&filter);
 /// ```
-pub trait WithFilterExt<E>
+pub trait WithODataExt<E>
 where
     E: EntityTrait,
 {
-    fn with_odata_filter(self, resource: &ODataResource) -> Self;
+    fn with_odata_resource(self, resource: &ODataResource) -> Self;
 }
 
-impl<E> WithFilterExt<E> for Select<E>
+impl<E> WithODataExt<E> for Select<E>
 where
     E: EntityTrait,
 {
-    fn with_odata_filter(self, resource: &ODataResource) -> Self {
+    fn with_odata_resource(self, resource: &ODataResource) -> Self {
         let columns = get_column_names::<E>();
 
         let mut query = self.filter(condition_with_filter(resource, &columns));
@@ -46,22 +98,18 @@ where
         //     query = query.order_by(col, order)
         // }
 
-        // query
-        todo!()
+        query
     }
 }
 
-pub fn get_column_names<E: EntityTrait>() -> HashMap<String, SimpleExpr> {
+pub fn get_column_names<E: EntityTrait>() -> ColumnList {
     E::Column::iter()
         .map(|col| col.as_column_ref())
         .map(|(_entity, col)| (col.to_string(), SimpleExpr::Column(ColumnRef::Column(col))))
         .collect()
 }
 
-pub fn condition_with_filter(
-    resource: &ODataResource,
-    table_columns: &HashMap<String, SimpleExpr>,
-) -> impl IntoCondition {
+pub fn condition_with_filter(resource: &ODataResource, table_columns: &ColumnList) -> impl IntoCondition {
     let mut condition = Condition::all();
 
     if let Some(search) = &resource.search {

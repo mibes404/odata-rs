@@ -1231,6 +1231,7 @@ dependencies = [
  "heck",
  "odata-model",
  "sea-orm",
+ "serde_json",
  "url",
 ]
 

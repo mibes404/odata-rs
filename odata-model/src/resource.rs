@@ -21,7 +21,29 @@ pub struct ODataResource {
     pub skip: Option<u32>,
 }
 
-#[derive(Debug)]
+impl Default for ODataResource {
+    fn default() -> Self {
+        Self {
+            entity: Entity {
+                name: String::new(),
+                key: None,
+            },
+            kind: ODataResourceKind::EntitySet,
+            url: String::new(),
+            title: None,
+            property: None,
+            operation: None,
+            relationships: Vec::new(),
+            search: None,
+            filters: Filters::default(),
+            requested_format: ODataFormat::default(),
+            top: None,
+            skip: None,
+        }
+    }
+}
+
+#[derive(Debug, Default)]
 pub struct Filters(pub Vec<(FieldFilter, Option<Chain>)>);
 
 impl Filters {
@@ -509,15 +531,7 @@ fn parse_path(url: &Url, value: String) -> ODataResult<ODataResource> {
                 entity,
                 kind: ODataResourceKind::EntitySet,
                 url: value.to_string(),
-                title: None,
-                property,
-                operation,
-                relationships,
-                search: None,
-                filters: Filters(Vec::new()),
-                requested_format: ODataFormat::default(),
-                top: None,
-                skip: None,
+                ..Default::default()
             })
         }
     }
@@ -651,14 +665,7 @@ impl From<ServiceDocumentValue> for ODataResource {
             },
             url: value.url,
             title: value.title,
-            property: None,
-            operation: None,
-            relationships: Vec::new(),
-            search: None,
-            filters: Filters(Vec::new()),
-            requested_format: ODataFormat::default(),
-            top: None,
-            skip: None,
+            ..Default::default()
         }
     }
 }
