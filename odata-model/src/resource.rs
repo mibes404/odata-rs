@@ -36,6 +36,10 @@ impl Filters {
     pub fn contents(&self) -> &[(FieldFilter, Option<Chain>)] {
         &self.0
     }
+
+    pub fn iter(&self) -> std::slice::Iter<'_, (FieldFilter, Option<Chain>)> {
+        self.0.iter()
+    }
 }
 
 #[derive(Debug, Default)]
@@ -209,6 +213,7 @@ pub enum Value {
     Null,
     String(String),
     Integer(i32),
+    Boolean(bool),
     Decimal(rust_decimal::Decimal),
     QueryOption(String),
 }
@@ -219,6 +224,7 @@ impl std::fmt::Display for Value {
             Value::Null => write!(f, "null"),
             Value::String(value) => write!(f, "{}", value),
             Value::Integer(value) => write!(f, "{}", value),
+            Value::Boolean(value) => write!(f, "{}", value),
             Value::QueryOption(value) => write!(f, "@{}", value),
             Value::Decimal(value) => write!(f, "{}", value),
         }
@@ -613,6 +619,10 @@ fn extract_value(value: &str) -> Value {
 
     if let Ok(num) = value.parse::<i32>() {
         return Value::Integer(num);
+    }
+
+    if let Ok(b) = value.parse::<bool>() {
+        return Value::Boolean(b);
     }
 
     if let Ok(num) = rust_decimal::Decimal::from_str(value) {
