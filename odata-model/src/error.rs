@@ -10,6 +10,8 @@ pub enum ODataError {
     InvalidOperation,
     #[error("invalid OData query; $top and $skip must be a positive integer")]
     InvalidQueryTopSkip,
+    #[error("invalid OData query; incompatible $orderby format")]
+    InvalidQueryOrderBy,
 }
 
 pub type ODataResult<T> = Result<T, ODataError>;

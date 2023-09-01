@@ -19,6 +19,10 @@ pub struct ODataResource {
     pub requested_format: ODataFormat,
     pub top: Option<u32>,
     pub skip: Option<u32>,
+    /// The sort order; defaults to ascending
+    /// Example: $orderby=Name desc,Price asc
+    /// Note: the order of the sort order is important; the first field is the primary sort order, the second field is the secondary sort order, etc.
+    pub order_by: Vec<OrderBy>,
 }
 
 impl Default for ODataResource {
@@ -39,8 +43,22 @@ impl Default for ODataResource {
             requested_format: ODataFormat::default(),
             top: None,
             skip: None,
+            order_by: Vec::new(),
         }
     }
+}
+
+#[derive(Debug, Default)]
+pub struct OrderBy {
+    pub field: String,
+    pub direction: OrderByDirection,
+}
+
+#[derive(Debug, PartialEq, Default)]
+pub enum OrderByDirection {
+    #[default]
+    Asc,
+    Desc,
 }
 
 #[derive(Debug, Default)]
@@ -272,14 +290,17 @@ impl TryFrom<&str> for ODataResource {
         for (key, value) in url.query_pairs() {
             if key == "$search" {
                 result.search = Some(value.to_string());
+                continue;
             }
 
             if key == "$filter" {
                 result.filters = parse_filter(value.as_ref())?;
+                continue;
             }
 
             if key == "$format" {
                 result.requested_format = value.as_ref().into();
+                continue;
             }
 
             if key == "$top" {
@@ -289,6 +310,7 @@ impl TryFrom<&str> for ODataResource {
                         .parse::<u32>()
                         .map_err(|_| ODataError::InvalidQueryTopSkip)?,
                 );
+                continue;
             }
 
             if key == "$skip" {
@@ -298,11 +320,42 @@ impl TryFrom<&str> for ODataResource {
                         .parse::<u32>()
                         .map_err(|_| ODataError::InvalidQueryTopSkip)?,
                 );
+                continue;
+            }
+
+            if key == "$orderby" {
+                result.order_by = parse_sort_order(value.as_ref())?;
             }
         }
 
         Ok(result)
     }
+}
+
+/// parse the OData 4 $orderby query option
+fn parse_sort_order(value: &str) -> ODataResult<Vec<OrderBy>> {
+    let mut order_by = Vec::new();
+    let parts = value.split(',');
+
+    for part in parts {
+        let mut part = part.split(' ');
+
+        let field = part.next().ok_or(error::ODataError::IncompletePath)?;
+        let direction = part.next().unwrap_or("asc");
+
+        let direction = match direction {
+            "asc" => OrderByDirection::Asc,
+            "desc" => OrderByDirection::Desc,
+            _ => return Err(error::ODataError::InvalidQueryOrderBy),
+        };
+
+        order_by.push(OrderBy {
+            field: field.to_string(),
+            direction,
+        });
+    }
+
+    Ok(order_by)
 }
 
 impl TryFrom<&Uri> for ODataResource {

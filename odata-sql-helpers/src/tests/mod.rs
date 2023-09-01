@@ -1,6 +1,6 @@
 use crate::tests::test_model::Model;
 use crate::{get_column_names, WithODataExt};
-use odata_model::resource::ODataResource;
+use odata_model::resource::{ODataResource, OrderBy, OrderByDirection};
 use sea_orm::{DbBackend, EntityTrait, ModelTrait, QueryTrait};
 
 pub mod test_model;
@@ -28,6 +28,29 @@ fn can_generate_a_search_query() {
     let query = build_query_with_filter(&resource);
     assert_eq!(
         r#"SELECT "users"."id", "users"."first_name", "users"."last_name", "users"."doc" FROM "users" WHERE LOWER("id") LIKE '%john%' OR LOWER("first_name") LIKE '%john%' OR LOWER("last_name") LIKE '%john%' OR LOWER("doc") LIKE '%john%'"#,
+        query
+    );
+}
+
+#[test]
+fn can_generate_order_by_query() {
+    let resource = ODataResource {
+        order_by: vec![
+            OrderBy {
+                field: "first_name".to_string(),
+                direction: OrderByDirection::Desc,
+            },
+            OrderBy {
+                field: "last_name".to_string(),
+                ..Default::default()
+            },
+        ],
+        ..Default::default()
+    };
+
+    let query = build_query_with_filter(&resource);
+    assert_eq!(
+        r#"SELECT "users"."id", "users"."first_name", "users"."last_name", "users"."doc" FROM "users" WHERE TRUE ORDER BY "first_name" DESC, "last_name" ASC"#,
         query
     );
 }

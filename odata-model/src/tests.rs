@@ -378,3 +378,27 @@ fn can_detect_invalid_top_or_skip_values() {
     let resource = ODataResource::try_from(url);
     assert!(resource.is_err());
 }
+
+#[test]
+fn can_parse_orderby() {
+    let url = "People?$orderby=BaseRate asc";
+    let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
+    assert_eq!(resource.order_by.len(), 1);
+    let OrderBy { field, direction } = &resource.order_by[0];
+    assert_eq!(field, "BaseRate");
+    assert_eq!(direction, &OrderByDirection::Asc);
+}
+
+#[test]
+fn can_parse_orderby_with_two_fields() {
+    let url = "People?$orderby=Rating desc,BaseRate";
+    let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
+    assert_eq!(resource.order_by.len(), 2);
+    let OrderBy { field, direction } = &resource.order_by[0];
+    assert_eq!(field, "Rating");
+    assert_eq!(direction, &OrderByDirection::Desc);
+
+    let OrderBy { field, direction } = &resource.order_by[1];
+    assert_eq!(field, "BaseRate");
+    assert_eq!(direction, &OrderByDirection::Asc);
+}

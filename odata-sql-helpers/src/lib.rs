@@ -1,11 +1,13 @@
 use heck::ToSnakeCase;
 use odata_model::resource::{Chain, FieldFilter, FilterOperation, ODataResource, Value};
+use odata_model::resource::{OrderBy, OrderByDirection};
 use sea_orm::entity::prelude::*;
 use sea_orm::entity::Iterable;
 use sea_orm::{
     sea_query::{ColumnRef, Expr, Func, IntoCondition, SimpleExpr},
-    Condition, EntityTrait, QueryFilter, Select,
+    Condition, EntityTrait, QueryFilter, QueryOrder, Select,
 };
+use sea_orm::{IntoSimpleExpr, Order};
 
 #[cfg(test)]
 mod tests;
@@ -91,14 +93,34 @@ where
 
         let mut query = self.filter(condition_with_filter(resource, &columns));
 
-        // if let Some(sort_by) = &filter.sort_by {
-        //     let snaked = sort_by.to_snake_case();
-        //     let col = SqlCol::new(snaked);
-        //     let order = if filter.descending { Order::Desc } else { Order::Asc };
-        //     query = query.order_by(col, order)
-        // }
+        for order_by in &resource.order_by {
+            let OrderBy { field, direction } = order_by;
+            let field = field.to_snake_case();
+            let col = SimpleColumn(field).into_simple_expr();
+            let order = if direction == &OrderByDirection::Desc {
+                Order::Desc
+            } else {
+                Order::Asc
+            };
+            query = query.order_by(col, order)
+        }
 
         query
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct SimpleColumn(String);
+
+impl Iden for SimpleColumn {
+    fn unquoted(&self, s: &mut dyn std::fmt::Write) {
+        let _ = s.write_str(&self.0);
+    }
+}
+
+impl IntoSimpleExpr for SimpleColumn {
+    fn into_simple_expr(self) -> SimpleExpr {
+        SimpleExpr::Column(ColumnRef::Column(SeaRc::new(self)))
     }
 }
 
@@ -146,7 +168,9 @@ pub fn condition_with_filter(resource: &ODataResource, table_columns: &ColumnLis
 
                     filter_condition = filter_condition.add(contents_condition);
                 }
-                FieldFilter::Nested(nested) => {}
+                FieldFilter::Nested(_nested) => {
+                    // todo: implement nested filters
+                }
             }
 
             // let snaked = field.to_snake_case();
