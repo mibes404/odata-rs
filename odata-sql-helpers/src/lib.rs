@@ -228,69 +228,6 @@ fn compare_opp(column: SimpleExpr, operation: &FilterOperation, negate: bool) ->
             }
             FilterOperation::Has(_) => todo!(),
             FilterOperation::Function(_) => todo!(),
-            // value if value == "true" || value == "false" => {
-            //     let val = bool::from_str(value).unwrap_or_default();
-            //     Expr::col(col_val).eq(val)
-            // }
-            // value if value == "!true" || value == "!false" => {
-            //     let val = bool::from_str(value).unwrap_or_default();
-            //     Expr::col(col_val).ne(val)
-            // }
-            // value if value.starts_with("gtd") => {
-            //     let timestamp_ms = i64::from_str(&pattern[3..]).unwrap_or_default();
-            //     let date = date_from_ms(timestamp_ms);
-            //     info!("Searching on date later than {} ({})", date, timestamp_ms);
-            //     Expr::col(col_val).gt(date)
-            // }
-            // value if value.starts_with("gted") => {
-            //     let timestamp_ms = i64::from_str(&pattern[4..]).unwrap_or_default();
-            //     let date = date_from_ms(timestamp_ms);
-            //     info!("Searching on date later than or equal to {} ({})", date, timestamp_ms);
-            //     Expr::col(col_val).gte(date)
-            // }
-            // value if value.starts_with("gte") => {
-            //     let ival = i32::from_str(&pattern[3..]).unwrap_or_default();
-            //     Expr::col(col_val).gte(ival)
-            // }
-            // value if value.starts_with("gt") => {
-            //     let ival = i32::from_str(&pattern[2..]).unwrap_or_default();
-            //     Expr::col(col_val).gt(ival)
-            // }
-            // value if value.starts_with("ltd") => {
-            //     let timestamp_ms = i64::from_str(&pattern[3..]).unwrap_or_default();
-            //     let date = date_from_ms(timestamp_ms);
-            //     info!("Searching on date later than {} ({})", date, timestamp_ms);
-            //     Expr::col(col_val).lt(date)
-            // }
-            // value if value.starts_with("lted") => {
-            //     let timestamp_ms = i64::from_str(&pattern[3..]).unwrap_or_default();
-            //     let date = date_from_ms(timestamp_ms);
-            //     info!("Searching on date later than or equal to {} ({})", date, timestamp_ms);
-            //     Expr::col(col_val).lte(date)
-            // }
-            // value if value.starts_with("lte") => {
-            //     let ival = i32::from_str(&pattern[3..]).unwrap_or_default();
-            //     Expr::col(col_val).lte(ival)
-            // }
-            // value if value.starts_with("lt") => {
-            //     let ival = i32::from_str(&pattern[2..]).unwrap_or_default();
-            //     Expr::col(col_val).lt(ival)
-            // }
-            // value if value.starts_with("eq") => {
-            //     let ival = i32::from_str(&pattern[2..]).unwrap_or_default();
-            //     Expr::col(col_val).eq(ival)
-            // }
-            // value if value.starts_with("::") => {
-            //     // pick from enumeration
-            //     let shouty_field = format!("{}_", col_val.0.to_shouty_snake_case());
-            //     let str_val = pattern[2..].trim_start_matches(&shouty_field).to_upper_camel_case();
-            //     Expr::col(col_val).eq(str_val)
-            // }
-            // default => {
-            //     let like = format!("%{}%", default.to_lowercase());
-            //     info!("searching default {like}");
-            //     Expr::expr(Func::lower(Expr::col(col_val))).like(like)
-            // }
         }
     } else {
         panic!("Not implemented for non-columns");
