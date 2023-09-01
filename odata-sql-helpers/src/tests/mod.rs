@@ -27,7 +27,7 @@ fn can_generate_a_search_query() {
 
     let query = build_query_with_filter(&resource);
     assert_eq!(
-        r#"SELECT "cake"."id", "cake"."first_name", "cake"."last_name", "cake"."doc" FROM "cake" WHERE LOWER("id") LIKE '%john%' OR LOWER("first_name") LIKE '%john%' OR LOWER("last_name") LIKE '%john%' OR LOWER("doc") LIKE '%john%'"#,
+        r#"SELECT "users"."id", "users"."first_name", "users"."last_name", "users"."doc" FROM "users" WHERE LOWER("id") LIKE '%john%' OR LOWER("first_name") LIKE '%john%' OR LOWER("last_name") LIKE '%john%' OR LOWER("doc") LIKE '%john%'"#,
         query
     );
 }
