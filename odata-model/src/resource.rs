@@ -531,6 +531,9 @@ fn parse_path(url: &Url, value: String) -> ODataResult<ODataResource> {
                 entity,
                 kind: ODataResourceKind::EntitySet,
                 url: value.to_string(),
+                property,
+                operation,
+                relationships,
                 ..Default::default()
             })
         }
