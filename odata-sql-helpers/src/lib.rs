@@ -154,27 +154,27 @@ pub fn condition_with_filter(resource: &ODataResource, table_columns: &ColumnLis
 }
 
 fn build_condition(filters: &Filters, table_columns: &ColumnList) -> Condition {
-    let mut condition = if let Some((_, chain)) = filters.0.first() {
-        build_condition_from_chain(chain)
-    } else {
-        Condition::all()
-    };
+    let (mut condition, and_groups) = build_condition_from_chain(filters);
+    let mut grouped_condition: Option<Condition> = None;
 
-    for (field_filter, chain) in filters.iter() {
-        let mut contents_condition = build_condition_from_chain(chain);
-
+    for (pos, (field_filter, _chain)) in filters.iter().enumerate() {
         match field_filter {
             FieldFilter::Contents(c) => {
+                if and_groups.within_group(pos) {
+                    grouped_condition = Some(Condition::all())
+                } else if let Some(use_grouped_condition) = grouped_condition.take() {
+                    condition = condition.add(use_grouped_condition);
+                }
+
                 let snaked = c.field.to_snake_case();
                 if let Some(col) = table_columns.get(&snaked) {
-                    contents_condition = contents_condition.add(compare_opp(col.clone(), &c.operation, c.not));
+                    if let Some(use_grouped_condition) = grouped_condition.take() {
+                        grouped_condition =
+                            Some(use_grouped_condition.add(compare_opp(col.clone(), &c.operation, c.not)));
+                    } else {
+                        condition = condition.add(compare_opp(col.clone(), &c.operation, c.not));
+                    }
                 }
-
-                if c.not {
-                    contents_condition = contents_condition.not();
-                }
-
-                condition = condition.add(contents_condition);
             }
             FieldFilter::Nested((not, filters)) => {
                 let mut contents_condition = build_condition(filters, table_columns);
@@ -186,18 +186,59 @@ fn build_condition(filters: &Filters, table_columns: &ColumnList) -> Condition {
         }
     }
 
+    if let Some(use_grouped_condition) = grouped_condition.take() {
+        condition = condition.add(use_grouped_condition);
+    }
+
     condition
 }
 
-fn build_condition_from_chain(chain: &Option<Chain>) -> Condition {
-    if let Some(chain) = chain {
-        match chain {
-            Chain::And => Condition::all(),
-            Chain::Or => Condition::any(),
-        }
-    } else {
-        Condition::all()
+struct AndGroups(Vec<(usize, usize)>);
+
+impl AndGroups {
+    /// Determine if the provided pos is within a group of ANDs
+    fn within_group(&self, pos: usize) -> bool {
+        self.0.iter().any(|(start, end)| pos >= *start && pos <= *end)
     }
+}
+
+fn build_condition_from_chain(filters: &Filters) -> (Condition, AndGroups) {
+    let mut top_level_condition = Condition::all();
+
+    let mut first_and_pos: Option<usize> = None;
+    let mut and_groups: Vec<(usize, usize)> = vec![];
+
+    for (pos, (_filter, chain)) in filters.0.iter().enumerate() {
+        if let Some(chain) = chain {
+            match chain {
+                Chain::And => {
+                    if first_and_pos.is_none() {
+                        first_and_pos = Some(pos);
+                    }
+                }
+                Chain::Or => {
+                    if let Some(use_first_and_pos) = first_and_pos {
+                        if use_first_and_pos != pos - 1 {
+                            and_groups.push((use_first_and_pos, pos - 1));
+                        }
+
+                        first_and_pos = None;
+                    }
+                    top_level_condition = Condition::any();
+                }
+            }
+        }
+    }
+
+    // close the group if we have one
+    if let Some(use_first_and_pos) = first_and_pos {
+        let pos = filters.0.len() - 1;
+        if use_first_and_pos != pos {
+            and_groups.push((use_first_and_pos, pos));
+        }
+    }
+
+    (top_level_condition, AndGroups(and_groups))
 }
 
 fn like_opp(column: SimpleExpr, pattern: &str) -> SimpleExpr {
