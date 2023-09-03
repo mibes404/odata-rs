@@ -1,5 +1,5 @@
 use heck::ToSnakeCase;
-use odata_model::resource::{Chain, FieldFilter, FilterOperation, ODataResource, Value};
+use odata_model::resource::{Chain, FieldFilter, FilterOperation, Filters, ODataResource, Value};
 use odata_model::resource::{OrderBy, OrderByDirection};
 use sea_orm::entity::prelude::*;
 use sea_orm::entity::Iterable;
@@ -69,7 +69,7 @@ impl<'i> Iterator for ColumnListIterator<'i> {
     }
 }
 
-/// Apply the common Filter to the SeaOrm query
+/// Apply the ODataResource filter to the SeaOrm query
 /// ```ignore
 /// use odata_model::resource::ODataResource;
 /// use self::WithFilterExt;
@@ -145,43 +145,59 @@ pub fn condition_with_filter(resource: &ODataResource, table_columns: &ColumnLis
     }
 
     if !resource.filters.is_empty() {
-        let mut filter_condition = Condition::all();
-
-        for (field_filter, chain) in resource.filters.iter() {
-            filter_condition = if let Some(chain) = chain {
-                match chain {
-                    Chain::And => Condition::all(),
-                    Chain::Or => Condition::any(),
-                }
-            } else {
-                Condition::all()
-            };
-
-            match field_filter {
-                FieldFilter::Contents(c) => {
-                    let mut contents_condition = Condition::any();
-
-                    let snaked = c.field.to_snake_case();
-                    if let Some(col) = table_columns.get(&snaked) {
-                        contents_condition = contents_condition.add(compare_opp(col.clone(), &c.operation, c.not));
-                    }
-
-                    filter_condition = filter_condition.add(contents_condition);
-                }
-                FieldFilter::Nested(_nested) => {
-                    // todo: implement nested filters
-                }
-            }
-
-            // let snaked = field.to_snake_case();
-            // let col = SqlCol::new(snaked);
-            // filter_condition = filter_condition.add(compare_opp(col, value));
-        }
-
+        let filters = &resource.filters;
+        let filter_condition = build_condition(filters, table_columns);
         condition = condition.add(filter_condition);
     }
 
     condition
+}
+
+fn build_condition(filters: &Filters, table_columns: &ColumnList) -> Condition {
+    let mut condition = if let Some((_, chain)) = filters.0.first() {
+        build_condition_from_chain(chain)
+    } else {
+        Condition::all()
+    };
+
+    for (field_filter, chain) in filters.iter() {
+        let mut contents_condition = build_condition_from_chain(chain);
+
+        match field_filter {
+            FieldFilter::Contents(c) => {
+                let snaked = c.field.to_snake_case();
+                if let Some(col) = table_columns.get(&snaked) {
+                    contents_condition = contents_condition.add(compare_opp(col.clone(), &c.operation, c.not));
+                }
+
+                if c.not {
+                    contents_condition = contents_condition.not();
+                }
+
+                condition = condition.add(contents_condition);
+            }
+            FieldFilter::Nested((not, filters)) => {
+                let mut contents_condition = build_condition(filters, table_columns);
+                if *not {
+                    contents_condition = contents_condition.not();
+                }
+                condition = condition.add(contents_condition);
+            }
+        }
+    }
+
+    condition
+}
+
+fn build_condition_from_chain(chain: &Option<Chain>) -> Condition {
+    if let Some(chain) = chain {
+        match chain {
+            Chain::And => Condition::all(),
+            Chain::Or => Condition::any(),
+        }
+    } else {
+        Condition::all()
+    }
 }
 
 fn like_opp(column: SimpleExpr, pattern: &str) -> SimpleExpr {

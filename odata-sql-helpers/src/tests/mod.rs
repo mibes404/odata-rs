@@ -54,3 +54,40 @@ fn can_generate_order_by_query() {
         query
     );
 }
+
+#[test]
+fn can_generate_an_and_query() {
+    let resource = ODataResource::try_from("users?$filter=first_name eq 'John' and last_name eq 'Doe'")
+        .expect("Failed to parse ODataResource");
+
+    let query = build_query_with_filter(&resource);
+    assert_eq!(
+        r#"SELECT "users"."id", "users"."first_name", "users"."last_name", "users"."doc" FROM "users" WHERE "first_name" = 'John' AND "last_name" = 'Doe'"#,
+        query
+    );
+}
+
+#[test]
+fn can_generate_an_or_query() {
+    let resource = ODataResource::try_from("users?$filter=first_name eq 'John' or first_name eq 'Bill'")
+        .expect("Failed to parse ODataResource");
+
+    let query = build_query_with_filter(&resource);
+    assert_eq!(
+        r#"SELECT "users"."id", "users"."first_name", "users"."last_name", "users"."doc" FROM "users" WHERE "first_name" = 'John' OR "first_name" = 'Bill'"#,
+        query
+    );
+}
+
+#[test]
+fn can_generate_a_combined_and_or_query() {
+    let resource =
+        ODataResource::try_from("users?$filter=first_name eq 'John' or first_name eq 'Bill' and last_name eq 'Doe'")
+            .expect("Failed to parse ODataResource");
+
+    let query = build_query_with_filter(&resource);
+    assert_eq!(
+        r#"SELECT "users"."id", "users"."first_name", "users"."last_name", "users"."doc" FROM "users" WHERE "first_name" = 'John' OR "first_name" = 'Bill' AND "last_name" = 'Doe'"#,
+        query
+    );
+}
