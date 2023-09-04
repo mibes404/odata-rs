@@ -2,6 +2,9 @@
 
 OData crate with helper functions and structures to process OData 4 requests and responses.
 
+The project includes crates for extracting OData queries from REST requests using [axum](https://docs.rs/axum/latest/axum/).
+And helpers for [sea-orm](https://docs.rs/sea-orm/latest/sea_orm/index.html) to generate queries from such an extracted OData resource. This should make it easy to bind the REST requests to a backend database.
+
 _This project is in a very early stage of development and not ready for general use._
 
 ## Try it out
