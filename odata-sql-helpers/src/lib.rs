@@ -7,7 +7,7 @@ use sea_orm::{
     sea_query::{ColumnRef, Expr, Func, IntoCondition, SimpleExpr},
     Condition, EntityTrait, QueryFilter, QueryOrder, Select,
 };
-use sea_orm::{IntoSimpleExpr, Order};
+use sea_orm::{IntoSimpleExpr, Order, QuerySelect};
 
 #[cfg(test)]
 mod tests;
@@ -103,6 +103,15 @@ where
                 Order::Asc
             };
             query = query.order_by(col, order)
+        }
+
+        // top and skip
+        if let Some(skip) = resource.skip {
+            query = query.offset(Some(skip as u64));
+        }
+
+        if let Some(top) = resource.top {
+            query = query.limit(Some(top as u64));
         }
 
         query

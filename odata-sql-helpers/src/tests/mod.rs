@@ -104,3 +104,14 @@ fn can_generate_a_query_with_groups() {
         query
     );
 }
+
+#[test]
+fn can_generate_a_query_with_top_and_skip() {
+    let resource = ODataResource::try_from("users?$top=20&$skip=60").expect("Failed to parse ODataResource");
+
+    let query = build_query_with_filter(&resource);
+    assert_eq!(
+        r#"SELECT "users"."id", "users"."first_name", "users"."last_name", "users"."doc" FROM "users" WHERE TRUE LIMIT 20 OFFSET 60"#,
+        query
+    );
+}
