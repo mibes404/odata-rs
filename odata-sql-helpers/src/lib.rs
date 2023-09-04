@@ -161,8 +161,11 @@ fn build_condition(filters: &Filters, table_columns: &ColumnList) -> Condition {
         match field_filter {
             FieldFilter::Contents(c) => {
                 if and_groups.within_group(pos) {
-                    grouped_condition = Some(Condition::all())
+                    if grouped_condition.is_none() {
+                        grouped_condition = Some(Condition::all())
+                    }
                 } else if let Some(use_grouped_condition) = grouped_condition.take() {
+                    // add the previous grouped condition to the top level condition
                     condition = condition.add(use_grouped_condition);
                 }
 
