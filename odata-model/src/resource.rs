@@ -402,21 +402,38 @@ fn parse_filter_field(parts: &mut Split<'_, char>) -> ODataResult<FieldFilter> {
         }))
     } else {
         let operation = parts.next().ok_or(error::ODataError::IncompletePath)?;
-        let value = parts.next().ok_or(error::ODataError::IncompletePath)?;
+        let mut value = parts.next().ok_or(error::ODataError::IncompletePath)?.to_string();
+
+        // Check if the part contains an opening quote, but not a closing quote
+        if value.chars().filter(|c| c == &'\'').count() % 2 != 0 {
+            // keep eating parts until there is a closing quote
+            loop {
+                if let Some(next_part) = parts.next() {
+                    value = format!("{} {}", value, next_part);
+
+                    if next_part.contains('\'') {
+                        // todo: find position of the quote and leave the rest
+                        break;
+                    }
+                } else {
+                    return Err(error::ODataError::IncompletePath);
+                }
+            }
+        }
 
         Ok(FieldFilter::Contents(FieldFilterContents {
             not,
             field: field.to_string(),
             operation: match operation.to_lowercase().as_str() {
-                "eq" => FilterOperation::Eq(extract_value(value)),
-                "ne" => FilterOperation::Ne(extract_value(value)),
-                "gt" => FilterOperation::Gt(extract_value(value)),
-                "ge" => FilterOperation::Ge(extract_value(value)),
-                "lt" => FilterOperation::Lt(extract_value(value)),
-                "le" => FilterOperation::Le(extract_value(value)),
-                "in" => FilterOperation::In(eat_in_list_parts(Some(value), parts)),
-                "has" => FilterOperation::Has(value.to_string()),
-                _ => FilterOperation::Function(value.to_string()),
+                "eq" => FilterOperation::Eq(extract_value(&value)),
+                "ne" => FilterOperation::Ne(extract_value(&value)),
+                "gt" => FilterOperation::Gt(extract_value(&value)),
+                "ge" => FilterOperation::Ge(extract_value(&value)),
+                "lt" => FilterOperation::Lt(extract_value(&value)),
+                "le" => FilterOperation::Le(extract_value(&value)),
+                "in" => FilterOperation::In(eat_in_list_parts(Some(&value), parts)),
+                "has" => FilterOperation::Has(value),
+                _ => FilterOperation::Function(value),
             },
         }))
     }

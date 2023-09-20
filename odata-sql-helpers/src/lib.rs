@@ -9,6 +9,7 @@ use sea_orm::{
 };
 use sea_orm::{IntoSimpleExpr, Order, QuerySelect};
 
+pub mod reflect;
 #[cfg(test)]
 mod tests;
 

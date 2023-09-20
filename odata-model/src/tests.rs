@@ -223,6 +223,36 @@ fn can_create_a_resource_from_a_url_with_a_filter_eq_or_lt_operation() {
 }
 
 #[test]
+fn can_create_a_resource_from_a_url_with_a_space_in_value() {
+    let url = "Products?$filter=Name eq 'Chocolate Milk'";
+    let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
+    assert_eq!(resource.entity.name, "Products");
+    assert_eq!(resource.filters.len(), 1);
+    let (filter, _) = &resource.filters.contents()[0];
+    let contents = filter.contents().unwrap();
+    assert_eq!(contents.field, "Name");
+    assert_eq!(
+        contents.operation,
+        FilterOperation::Eq(Value::String("Chocolate Milk".to_string()))
+    );
+}
+
+#[test]
+fn can_create_a_resource_from_a_url_with_multiple_spaces_in_value() {
+    let url = "Products?$filter=Name eq 'Very nice Chocolate Milk'";
+    let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");
+    assert_eq!(resource.entity.name, "Products");
+    assert_eq!(resource.filters.len(), 1);
+    let (filter, _) = &resource.filters.contents()[0];
+    let contents = filter.contents().unwrap();
+    assert_eq!(contents.field, "Name");
+    assert_eq!(
+        contents.operation,
+        FilterOperation::Eq(Value::String("Very nice Chocolate Milk".to_string()))
+    );
+}
+
+#[test]
 fn can_create_a_resource_from_a_url_with_a_filter_in_operation() {
     let url = "Products?$filter=Name in ('Milk', 'Butter', 'Cheese')";
     let resource = ODataResource::try_from(url).expect("Failed to create a resource from the URL");

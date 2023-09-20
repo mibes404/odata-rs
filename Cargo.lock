@@ -1229,6 +1229,7 @@ name = "odata-sql-helpers"
 version = "0.1.0"
 dependencies = [
  "heck",
+ "odata-edm",
  "odata-model",
  "sea-orm",
  "serde_json",

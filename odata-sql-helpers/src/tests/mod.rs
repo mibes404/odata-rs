@@ -106,6 +106,35 @@ fn can_generate_a_query_with_groups() {
 }
 
 #[test]
+fn can_generate_a_query_with_two_groups() {
+    let resource = ODataResource::try_from(
+        "users?$filter=(first_name eq 'John' or first_name eq 'Bill') and (last_name eq 'Doe' or last_name eq 'Smith')",
+    )
+    .expect("Failed to parse ODataResource");
+
+    let query = build_query_with_filter(&resource);
+    assert_eq!(
+        r#"SELECT "users"."id", "users"."first_name", "users"."last_name", "users"."doc" FROM "users" WHERE ("first_name" = 'John' OR "first_name" = 'Bill') AND ("last_name" = 'Doe' OR "last_name" = 'Smith')"#,
+        query
+    );
+}
+
+#[test]
+fn can_withstand_sql_injection() {
+    // todo: write proper SQL-injection test
+
+    let resource =
+        ODataResource::try_from("users?$filter=first_name eq 'John\"; INSERT INTO \"users\" values ('illegal');'")
+            .expect("Failed to parse ODataResource");
+
+    let query = build_query_with_filter(&resource);
+    assert_eq!(
+        r#"SELECT "users"."id", "users"."first_name", "users"."last_name", "users"."doc" FROM "users" WHERE "first_name" = E'John\"; INSERT INTO \"users\" values (\'illegal\');'"#,
+        query
+    );
+}
+
+#[test]
 fn can_generate_a_query_with_top_and_skip() {
     let resource = ODataResource::try_from("users?$top=20&$skip=60").expect("Failed to parse ODataResource");
 

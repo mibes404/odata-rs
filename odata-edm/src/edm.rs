@@ -66,6 +66,42 @@ pub struct EntityType {
     pub annotation: Option<Vec<Annotation>>,
 }
 
+impl EntityType {
+    pub fn new(name: String) -> Self {
+        Self {
+            name,
+            has_stream: None,
+            open_type: None,
+            key: None,
+            property: None,
+            navigation_property: None,
+            annotation: None,
+        }
+    }
+
+    pub fn add_property(&mut self, name: String, _type: String) {
+        let property = Property {
+            name,
+            _type,
+            nullable: None,
+            default_value: None,
+            max_length: None,
+            precision: None,
+            scale: None,
+            unicode: None,
+            srid: None,
+            concurrency_mode: None,
+            annotation: None,
+        };
+
+        if let Some(properties) = &mut self.property {
+            properties.push(property);
+        } else {
+            self.property = Some(vec![property]);
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename = "Key")]
 pub struct Key {
