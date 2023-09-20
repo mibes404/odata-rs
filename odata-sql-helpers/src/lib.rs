@@ -15,7 +15,19 @@ mod tests;
 
 pub struct ColumnList {
     keys: Vec<String>,
-    values: Vec<SimpleExpr>,
+    values: Vec<ColumnValue>,
+}
+
+#[derive(Clone)]
+pub struct ColumnValue {
+    pub column: SimpleExpr,
+    pub def: ColumnDef,
+}
+
+impl From<(SimpleExpr, ColumnDef)> for ColumnValue {
+    fn from((column, def): (SimpleExpr, ColumnDef)) -> Self {
+        Self { column, def }
+    }
 }
 
 pub struct ColumnListIterator<'a> {
@@ -28,8 +40,9 @@ impl ColumnList {
         self.keys.contains(&key.to_string())
     }
 
-    pub fn get(&self, key: &str) -> Option<&SimpleExpr> {
-        self.values.get(self.keys.iter().position(|k| k == key)?)
+    pub fn get(&self, key: &str) -> Option<&ColumnValue> {
+        let pos = self.keys.iter().position(|k| k == key)?;
+        self.values.get(pos)
     }
 
     pub fn iter(&self) -> ColumnListIterator {
@@ -41,8 +54,8 @@ impl ColumnList {
     }
 }
 
-impl FromIterator<(String, SimpleExpr)> for ColumnList {
-    fn from_iter<T: IntoIterator<Item = (String, SimpleExpr)>>(iter: T) -> Self {
+impl FromIterator<(String, ColumnValue)> for ColumnList {
+    fn from_iter<T: IntoIterator<Item = (String, ColumnValue)>>(iter: T) -> Self {
         let mut keys = Vec::new();
         let mut values = Vec::new();
 
@@ -56,7 +69,7 @@ impl FromIterator<(String, SimpleExpr)> for ColumnList {
 }
 
 impl<'i> Iterator for ColumnListIterator<'i> {
-    type Item = (&'i str, &'i SimpleExpr);
+    type Item = (&'i str, &'i ColumnValue);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.index < self.items.keys.len() {
@@ -136,8 +149,13 @@ impl IntoSimpleExpr for SimpleColumn {
 
 pub fn get_column_names<E: EntityTrait>() -> ColumnList {
     E::Column::iter()
-        .map(|col| col.as_column_ref())
-        .map(|(_entity, col)| (col.to_string(), SimpleExpr::Column(ColumnRef::Column(col))))
+        .map(|col| (col.as_column_ref(), col.def()))
+        .map(|((_entity, col), def)| {
+            (
+                col.to_string(),
+                ColumnValue::from((SimpleExpr::Column(ColumnRef::Column(col)), def)),
+            )
+        })
         .collect()
 }
 
@@ -181,6 +199,7 @@ fn build_condition(filters: &Filters, table_columns: &ColumnList) -> Condition {
 
                 let snaked = c.field.to_snake_case();
                 if let Some(col) = table_columns.get(&snaked) {
+                    let col = &col.column;
                     if let Some(use_grouped_condition) = grouped_condition.take() {
                         grouped_condition =
                             Some(use_grouped_condition.add(compare_opp(col.clone(), &c.operation, c.not)));
@@ -254,7 +273,8 @@ fn build_condition_from_chain(filters: &Filters) -> (Condition, AndGroups) {
     (top_level_condition, AndGroups(and_groups))
 }
 
-fn like_opp(column: SimpleExpr, pattern: &str) -> SimpleExpr {
+fn like_opp(column: ColumnValue, pattern: &str) -> SimpleExpr {
+    let column = column.column;
     let like = format!("%{}%", pattern.to_lowercase());
     Expr::expr(Func::lower(column)).like(like)
 }
