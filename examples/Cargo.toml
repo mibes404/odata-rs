@@ -1,0 +1,17 @@
+[package]
+name = "examples"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+sea-orm = "0.12"
+odata-model = { path = "../odata-model" }
+odata-edm = { path = "../odata-edm" }
+odata-sql-helpers = { path = "../odata-sql-helpers" }
+quick-xml={version = "0.30", features=["serialize"]}
+serde={version = "1.0", features=["derive"]}
+serde_json = "1"
+
+[[example]]
+name = "edm"
+path = "edm/src/main.rs"
