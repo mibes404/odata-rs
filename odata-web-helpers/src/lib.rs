@@ -3,6 +3,9 @@ use axum::extract::FromRequestParts;
 use http::{request::Parts, StatusCode};
 use odata_model::resource::ODataResource;
 
+pub mod response;
+
+/// Extracts a [`ODataResource`] from the request.
 pub struct ExtractODataResource(pub ODataResource);
 
 #[async_trait]

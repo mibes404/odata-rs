@@ -1257,6 +1257,8 @@ dependencies = [
  "axum",
  "http",
  "odata-model",
+ "serde",
+ "serde_json",
  "url",
 ]
 
