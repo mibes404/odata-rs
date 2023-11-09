@@ -1,7 +1,5 @@
 //! Response helpers for OData web services.
 
-use std::collections::HashMap;
-
 use axum::{
     response::{IntoResponse, Response},
     Json,

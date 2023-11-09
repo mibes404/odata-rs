@@ -17,6 +17,11 @@ You can run the sample server by executing: `cargo run --bin sample-server`
 
 Try a request with something like: `http://localhost:8080/V4/TripPinService/Products?$filter=Name eq 'Milk' and Price lt 2.55`
 
+## End-to-End example
+You can run the end-to-end example by executing: `cargo run --example e2e`
+
+Try a request with: `http://localhost:8080/V4/UserService/users`
+
 ## DISCLAIMER
 
 Please note: all content in this repository is released for use "AS IS" without any warranties of any kind, including, but not limited to their installation, use, or performance. We disclaim any and all warranties, either express or implied, including but not limited to any warranty of noninfringement, merchantability, and/ or fitness for a particular purpose. We do not warrant that the technology will meet your requirements, that the operation thereof will be uninterrupted or error-free, or that any errors will be corrected.
