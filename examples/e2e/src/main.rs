@@ -1,8 +1,8 @@
 use anyhow::Result;
-use axum::{extract::State, routing::get, Json, Router};
+use axum::{extract::State, routing::get, Router};
 use odata_model::model::ODataModel;
 use odata_sql_helpers::{reflect::model_with_entity, WithODataExt};
-use odata_web_helpers::{serve_edm, ExtractODataResource, WithODataModelExt};
+use odata_web_helpers::{response::ODataResponse, serve_edm, ExtractODataResource, WithODataModelExt};
 use sea_orm::{DatabaseBackend, DatabaseConnection, EntityTrait, MockDatabase, ModelTrait};
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -66,16 +66,17 @@ async fn main() -> Result<()> {
 async fn parse_odata_request_handler(
     State(state): State<Arc<AppState>>,
     ExtractODataResource(resource): ExtractODataResource,
-) -> Json<Value> {
+) -> ODataResponse<Value> {
     let conn = state.db.conn();
     let query_results = test_model::Entity::find()
         .with_odata_resource(&resource)
         .into_json()
         .all(&conn)
-        .await;
+        .await
+        .expect("Failed to execute query");
 
-    match query_results {
-        Ok(results) => Json(json!(results)),
-        Err(e) => Json(json!({ "error": e.to_string() })),
-    }
+    let body = json!(query_results);
+
+    println!("model: {:?}", state.model);
+    ODataResponse::<serde_json::Value>::new(body, "users", &state.model)
 }
