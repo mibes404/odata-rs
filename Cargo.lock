@@ -550,7 +550,7 @@ dependencies = [
  "odata-edm",
  "odata-model",
  "odata-sql-helpers",
- "quick-xml",
+ "quick-xml 0.30.0",
  "sea-orm",
  "serde",
  "serde_json",
@@ -1208,10 +1208,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "odata-common"
+version = "0.1.0"
+dependencies = [
+ "sea-orm",
+]
+
+[[package]]
 name = "odata-edm"
 version = "0.1.0"
 dependencies = [
- "quick-xml",
+ "quick-xml 0.31.0",
  "serde",
 ]
 
@@ -1220,6 +1227,8 @@ name = "odata-model"
 version = "0.1.0"
 dependencies = [
  "http",
+ "odata-common",
+ "odata-edm",
  "percent-encoding",
  "rust_decimal",
  "rust_decimal_macros",
@@ -1242,6 +1251,7 @@ name = "odata-sql-helpers"
 version = "0.1.0"
 dependencies = [
  "heck",
+ "odata-common",
  "odata-edm",
  "odata-model",
  "sea-orm",
@@ -1521,6 +1531,16 @@ name = "quick-xml"
 version = "0.30.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "eff6510e86862b57b210fd8cbe8ed3f0d7d600b9c2863cd4549a2e033c66e956"
+dependencies = [
+ "memchr",
+ "serde",
+]
+
+[[package]]
+name = "quick-xml"
+version = "0.31.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1004a344b30a54e2ee58d66a71b32d2db2feb0a31f9a2d302bf0536f15de2a33"
 dependencies = [
  "memchr",
  "serde",

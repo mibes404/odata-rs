@@ -14,5 +14,10 @@ thiserror = "1.0"
 rust_decimal = "1.32"
 http = "0.2"
 
+# Local dependencies
+odata-common = { path = "../odata-common" }
+odata-edm = { path = "../odata-edm" }
+
 [dev-dependencies]
 rust_decimal_macros = "1.32"
+

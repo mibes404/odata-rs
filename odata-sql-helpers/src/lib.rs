@@ -1,4 +1,5 @@
 use heck::ToSnakeCase;
+use odata_common::{ColumnList, ColumnValue, PrimaryKeys};
 use odata_model::resource::{Chain, FieldFilter, FilterOperation, Filters, ODataResource, Value};
 use odata_model::resource::{OrderBy, OrderByDirection};
 use sea_orm::entity::prelude::*;
@@ -12,76 +13,6 @@ use sea_orm::{IntoSimpleExpr, Order, QuerySelect};
 pub mod reflect;
 #[cfg(test)]
 mod tests;
-
-pub struct ColumnList {
-    keys: Vec<String>,
-    values: Vec<ColumnValue>,
-}
-
-#[derive(Clone)]
-pub struct ColumnValue {
-    pub column: SimpleExpr,
-    pub def: ColumnDef,
-}
-
-impl From<(SimpleExpr, ColumnDef)> for ColumnValue {
-    fn from((column, def): (SimpleExpr, ColumnDef)) -> Self {
-        Self { column, def }
-    }
-}
-
-pub struct ColumnListIterator<'a> {
-    items: &'a ColumnList,
-    index: usize,
-}
-
-impl ColumnList {
-    pub fn contains_key(&self, key: &str) -> bool {
-        self.keys.contains(&key.to_string())
-    }
-
-    pub fn get(&self, key: &str) -> Option<&ColumnValue> {
-        let pos = self.keys.iter().position(|k| k == key)?;
-        self.values.get(pos)
-    }
-
-    pub fn iter(&self) -> ColumnListIterator {
-        ColumnListIterator { items: self, index: 0 }
-    }
-
-    pub fn keys(&self) -> Vec<&str> {
-        self.keys.iter().map(|k| k.as_str()).collect()
-    }
-}
-
-impl FromIterator<(String, ColumnValue)> for ColumnList {
-    fn from_iter<T: IntoIterator<Item = (String, ColumnValue)>>(iter: T) -> Self {
-        let mut keys = Vec::new();
-        let mut values = Vec::new();
-
-        for (key, value) in iter {
-            keys.push(key);
-            values.push(value);
-        }
-
-        Self { keys, values }
-    }
-}
-
-impl<'i> Iterator for ColumnListIterator<'i> {
-    type Item = (&'i str, &'i ColumnValue);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.index < self.items.keys.len() {
-            let key = &self.items.keys[self.index];
-            let value = &self.items.values[self.index];
-            self.index += 1;
-            Some((key.as_str(), value))
-        } else {
-            None
-        }
-    }
-}
 
 /// Apply the ODataResource filter to the SeaOrm query
 /// ```ignore
@@ -103,7 +34,7 @@ where
     E: EntityTrait,
 {
     fn with_odata_resource(self, resource: &ODataResource) -> Self {
-        let columns = get_column_names::<E>();
+        let (_pkeys, columns) = get_column_names::<E>();
 
         let mut query = self.filter(condition_with_filter(resource, &columns));
 
@@ -147,8 +78,13 @@ impl IntoSimpleExpr for SimpleColumn {
     }
 }
 
-pub fn get_column_names<E: EntityTrait>() -> ColumnList {
-    E::Column::iter()
+pub fn get_column_names<E: EntityTrait>() -> (PrimaryKeys, ColumnList) {
+    let p_keys = E::PrimaryKey::iter()
+        .map(|pkey| pkey.into_column().as_column_ref())
+        .map(|(_entity, col)| col.to_string())
+        .collect();
+
+    let column_list = E::Column::iter()
         .map(|col| (col.as_column_ref(), col.def()))
         .map(|((_entity, col), def)| {
             (
@@ -156,7 +92,9 @@ pub fn get_column_names<E: EntityTrait>() -> ColumnList {
                 ColumnValue::from((SimpleExpr::Column(ColumnRef::Column(col)), def)),
             )
         })
-        .collect()
+        .collect();
+
+    (p_keys, column_list)
 }
 
 pub fn condition_with_filter(resource: &ODataResource, table_columns: &ColumnList) -> impl IntoCondition {

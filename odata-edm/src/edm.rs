@@ -13,6 +13,16 @@ pub struct Edmx {
     pub data_services: DataServices,
 }
 
+impl Default for Edmx {
+    fn default() -> Self {
+        Self {
+            version: "4.01".to_string(),
+            xmlns: None,
+            data_services: DataServices { schema: Vec::new() },
+        }
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename = "edmx:DataServices")]
 pub struct DataServices {
@@ -99,6 +109,14 @@ impl EntityType {
         } else {
             self.property = Some(vec![property]);
         }
+    }
+
+    pub fn set_key<'k>(&mut self, keys: impl Iterator<Item = &'k str>) {
+        let key = Key {
+            property_ref: Some(keys.map(|k| PropertyRef { name: k.to_string() }).collect()),
+        };
+
+        self.key = Some(vec![key]);
     }
 }
 

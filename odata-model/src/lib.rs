@@ -1,6 +1,7 @@
 pub mod error;
 pub mod resource;
 
+pub mod model;
 #[cfg(test)]
 mod tests;
 

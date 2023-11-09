@@ -8,10 +8,12 @@ pub fn into_entity_type<E>() -> EntityType
 where
     E: EntityTrait,
 {
-    let columns = get_column_names::<E>();
+    let (p_keys, columns) = get_column_names::<E>();
     let e = E::default();
     let table_name = e.table_name();
+
     let mut et = EntityType::new(table_name.to_string());
+    et.set_key(p_keys.iter());
 
     for (key, value) in columns.iter() {
         // Get the OData Property type from the SeaOrm column definition
@@ -74,6 +76,10 @@ mod tests {
 
         let id = get_property("id", &properties).expect("id");
         assert_eq!("Edm.Int32", id._type);
+
+        let key = et.key.expect("key");
+        assert_eq!(1, key.len());
+        assert_eq!("id", key[0].property_ref.as_ref().expect("property_ref")[0].name);
     }
 
     fn get_property<'p>(key: &str, properties: &'p [Property]) -> Option<&'p Property> {

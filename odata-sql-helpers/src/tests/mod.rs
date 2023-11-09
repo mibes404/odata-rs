@@ -7,8 +7,9 @@ pub mod test_model;
 
 #[test]
 fn can_get_column_names_from_entity() {
-    let columns = get_column_names::<<Model as ModelTrait>::Entity>();
+    let (p_keys, columns) = get_column_names::<<Model as ModelTrait>::Entity>();
     assert_eq!(vec!["id", "first_name", "last_name", "doc"], columns.keys());
+    assert_eq!(vec!["id"], p_keys.keys());
 }
 
 fn build_query_with_filter(resource: &ODataResource) -> String {
