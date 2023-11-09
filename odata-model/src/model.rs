@@ -4,13 +4,15 @@ use std::collections::HashMap;
 use crate::resource::{Entity, ODataResource};
 
 pub struct ODataModel {
+    base_url: String,
     resources: HashMap<String, ODataResource>,
     edm: Edmx,
 }
 
 impl ODataModel {
-    pub fn new() -> Self {
+    pub fn new<U: Into<String>>(base_url: U) -> Self {
         Self {
+            base_url: base_url.into(),
             resources: HashMap::new(),
             edm: Edmx::default(),
         }
@@ -63,20 +65,15 @@ impl ODataModel {
 
     pub fn context_for_entity(&self, entity_id: &str) -> Option<String> {
         let entity_type = self.get_entity_type_by_name(entity_id);
-        let schema = self.edm.data_services.schema.get(0);
+        let base_url = &self.base_url;
 
-        if let (Some(entity_type), Some(schema)) = (entity_type, schema) {
-            let namespace = &schema.namespace;
-            Some(format!("{}/$metadata#{}", namespace, entity_type.name))
-        } else {
-            None
-        }
+        entity_type.map(|entity_type| format!("{}/$metadata#{}", base_url, entity_type.name))
     }
 }
 
 impl Default for ODataModel {
     fn default() -> Self {
-        Self::new()
+        Self::new("https://example.com/V4/SampleService")
     }
 }
 

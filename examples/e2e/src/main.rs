@@ -43,15 +43,15 @@ impl WithODataModelExt for AppState {
 #[tokio::main]
 async fn main() -> Result<()> {
     let db = MockedUserDB;
-    let model = ODataModel::default();
+    let model = ODataModel::new("/V4/UserService");
     let model = model_with_entity::<<UserModel as ModelTrait>::Entity>(model);
     let app_state = Arc::new(AppState { db, model });
 
     // build our application with a single route
     // try with: curl localhost:8080/V4/UserService/Users
     let app = Router::new()
-        .route("/V4/UserService/Users/$metadata", get(serve_edm))
-        .route("/V4/UserService/Users", get(parse_odata_request_handler))
+        .route("/V4/UserService/$metadata", get(serve_edm))
+        .route("/V4/UserService/users", get(parse_odata_request_handler))
         .with_state(app_state);
 
     // run it with hyper on localhost:8080
@@ -76,7 +76,5 @@ async fn parse_odata_request_handler(
         .expect("Failed to execute query");
 
     let body = json!(query_results);
-
-    println!("model: {:?}", state.model);
     ODataResponse::<serde_json::Value>::new(body, "users", &state.model)
 }
