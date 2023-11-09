@@ -1210,9 +1210,6 @@ dependencies = [
 [[package]]
 name = "odata-common"
 version = "0.1.0"
-dependencies = [
- "sea-orm",
-]
 
 [[package]]
 name = "odata-edm"
