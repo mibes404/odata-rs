@@ -52,6 +52,10 @@ impl ODataModel {
 
         self
     }
+
+    pub fn edm(&self) -> &Edmx {
+        &self.edm
+    }
 }
 
 impl Default for ODataModel {
