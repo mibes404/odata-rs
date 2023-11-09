@@ -17,8 +17,21 @@ impl Default for Edmx {
     fn default() -> Self {
         Self {
             version: "4.01".to_string(),
-            xmlns: None,
-            data_services: DataServices { schema: Vec::new() },
+            xmlns: Some("http://docs.oasis-open.org/odata/ns/edmx".to_string()),
+            data_services: DataServices {
+                schema: vec![Schema::new("Avaya.OData.SampleService.Models.Schema".to_string())],
+            },
+        }
+    }
+}
+
+impl Edmx {
+    pub fn new(schema_name: String) -> Self {
+        Self {
+            data_services: DataServices {
+                schema: vec![Schema::new(schema_name)],
+            },
+            ..Default::default()
         }
     }
 }
@@ -55,6 +68,24 @@ pub struct Schema {
     pub function: Option<Vec<Function>>,
     #[serde(rename = "EntityContainer", skip_serializing_if = "Option::is_none")]
     pub entity_container: Option<Vec<EntityContainer>>,
+}
+
+impl Schema {
+    pub fn new(schema_name: String) -> Self {
+        Self {
+            namespace: schema_name,
+            xmlns: Some("http://docs.oasis-open.org/odata/ns/edm".to_string()),
+            entity_type: None,
+            complex_type: None,
+            enum_type: None,
+            type_definition: None,
+            term: None,
+            annotations: None,
+            action: None,
+            function: None,
+            entity_container: None,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq)]

@@ -2,6 +2,7 @@
 
 use crate::get_column_names;
 use odata_edm::edm::EntityType;
+use odata_model::model::ODataModel;
 use sea_orm::{ColumnType, EntityTrait};
 
 pub fn into_entity_type<E>() -> EntityType
@@ -58,6 +59,14 @@ where
     et
 }
 
+pub fn model_with_entity<E>(model: ODataModel) -> ODataModel
+where
+    E: EntityTrait,
+{
+    let et = into_entity_type::<E>();
+    model.with_entity_type(et)
+}
+
 #[cfg(test)]
 mod tests {
     use odata_edm::edm::Property;
@@ -84,5 +93,16 @@ mod tests {
 
     fn get_property<'p>(key: &str, properties: &'p [Property]) -> Option<&'p Property> {
         properties.iter().find(|p| p.name == key)
+    }
+
+    #[test]
+    fn can_build_odata_model_from_db() {
+        let model = ODataModel::default();
+        let model = model_with_entity::<<Model as ModelTrait>::Entity>(model);
+        let resource = model.get_resource("users").expect("users");
+        assert_eq!("users", resource.entity.name);
+
+        let et = model.get_entity_type(resource).expect("entity_type");
+        assert_eq!("users", et.name);
     }
 }

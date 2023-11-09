@@ -32,7 +32,6 @@ impl Default for ODataResource {
             entity: Entity {
                 name: String::new(),
                 key: None,
-                entity_type: None,
             },
             kind: ODataResourceKind::EntitySet,
             url: String::new(),
@@ -104,7 +103,15 @@ pub enum Key {
 pub struct Entity {
     pub name: String,
     pub key: Option<Key>,
-    pub entity_type: Option<EntityType>,
+}
+
+impl From<&EntityType> for Entity {
+    fn from(value: &EntityType) -> Self {
+        Self {
+            name: value.name.clone(),
+            key: None,
+        }
+    }
 }
 
 impl std::fmt::Display for Entity {
@@ -639,7 +646,6 @@ fn extract_entity(name: &str) -> Entity {
         return Entity {
             name: name.to_string(),
             key: Some(Key::String(key)),
-            entity_type: None,
         };
     }
 
@@ -659,7 +665,6 @@ fn extract_entity(name: &str) -> Entity {
                 return Entity {
                     name: name.to_string(),
                     key: Some(Key::KeyValue((key.to_string(), Value::String(value.to_string())))),
-                    entity_type: None,
                 };
             }
 
@@ -668,7 +673,6 @@ fn extract_entity(name: &str) -> Entity {
                 return Entity {
                     name: name.to_string(),
                     key: Some(Key::KeyValue((key.to_string(), Value::QueryOption(value.to_string())))),
-                    entity_type: None,
                 };
             }
 
@@ -676,14 +680,12 @@ fn extract_entity(name: &str) -> Entity {
                 return Entity {
                     name: name.to_string(),
                     key: Some(Key::KeyValue((key.to_string(), Value::Integer(num)))),
-                    entity_type: None,
                 };
             }
 
             return Entity {
                 name: name.to_string(),
                 key: None,
-                entity_type: None,
             };
         }
 
@@ -691,7 +693,6 @@ fn extract_entity(name: &str) -> Entity {
             return Entity {
                 name: name.to_string(),
                 key: Some(Key::Number(num)),
-                entity_type: None,
             };
         }
     }
@@ -699,7 +700,6 @@ fn extract_entity(name: &str) -> Entity {
     Entity {
         name: name.to_string(),
         key: None,
-        entity_type: None,
     }
 }
 
